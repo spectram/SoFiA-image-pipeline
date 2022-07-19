@@ -39,7 +39,7 @@ def get_wcs_info(fits_name):
     :return:
     """
     cubeh = fits.getheader(fits_name)
-    cubew = WCS(cubeh).sub(2)
+    cubew = WCS(cubeh, fix=True, translate_units='shd').sub(2)
 
     if cubew.wcs.equinox != 2000.0:
         sky = cubew.sub(2).pixel_to_world(cubew.wcs.crpix[0], cubew.wcs.crpix[1])
@@ -442,6 +442,14 @@ def make_mom1(source, hi_pos_common, src_basename, cube_params, patch, opt_head,
             mom1 = fits.open(src_basename + '_{}_mom1.fits'.format(source['id']))
         except FileNotFoundError:
             print("\tNo mom1 fits file. Perhaps you ran SoFiA without generating moments?")
+            return
+
+        print(src_basename + '_{}_snr.fits'.format(source['id']))
+        if not os.path.isfile(src_basename + '_{}_cube.fits'.format(source['id'])):
+            print("\tERROR: No fits cube associated with source, so can't determine min & max velocities for mom1 figure.")
+            return
+        elif not os.path.isfile(src_basename + '_{}_snr.fits'.format(source['id'])):
+            print("\tERROR: No fits snr map associated with source, so can't determine mask for mom1 figure.")
             return
 
         # Do some preparatory work depending on the units of the spectral axis on the input cube.
