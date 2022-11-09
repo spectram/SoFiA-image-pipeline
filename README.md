@@ -133,7 +133,7 @@ SkyView.list_surveys()
 SkyView.survey_dict
 ```
 
-* In addition to overlaying HI contours on survey images available through `astroquery`, a user can request WISE images (`'WISE W#'` where `#` is the band number); false color images from `'decals'`, or `'panstarrs'`; or gray scale HST-ACS Mosaic images for sources within the COSMOS field with `'hst'`.  The HST image size is currently hardcoded to 40 arcsec on a side. 
+* In addition to overlaying HI contours on survey images available through `astroquery`, a user can request WISE images (`'WISE W#'` where `#` is the band number); false color images from `'decals'` (DR9), `'decals-dev'` (DR10), or `'panstarrs'`; or gray scale HST-ACS Mosaic images for sources within the COSMOS field with `'hst'`.  The HST image size is currently hardcoded to 40 arcsec on a side. 
 
 * Downloading survey images from `astroquery.SkyView` or other online sources is the greatest limiting factor in the speed of SIP.  To avoid this, for catalogs with a high source density, you may consider downloading one large image to disk before running SIP.  For this purpose, we have included the command line tool `download_usr_fig`. For example:
 ```
@@ -178,6 +178,8 @@ In addition we are aware of the following issues:
 
 Version history
 ---------------
+* SIP 1.2.0
+    * Released 12 July 2022 
 * SIP 1.1.0
     * Released 9 May 2022
 * SIP 1.0.0

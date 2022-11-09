@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='sofia_image_pipeline',
-    version='1.2.0',
+    version='1.2.2',
     description='SIP takes a SoFiA generated source catalog and produce images for publication or quick inspection. Images include HI contours overlaid on multiwavelength images, HI moment maps, pixel-by-pixel SNR maps, pv-diagrams with SoFiA mask, and spectra with and without noise.',
     url='https://github.com/kmhess/SoFiA-image-pipeline',
     author='Kelley M. Hess',
@@ -17,7 +17,7 @@ setup(
         "matplotlib == 3.4.1",
         "numpy == 1.22.0",
         "Pillow == 9.2.0",
-        "pvextractor == 0.2",
+        "pvextractor >= 0.2",
         "requests == 2.25.1",
         "setuptools==62.3.2",
         "sphinx_rtd_theme == 1.0.0",

@@ -88,7 +88,7 @@ def make_overlay_usr(source, src_basename, cube_params, patch, opt, base_contour
         except FileNotFoundError:
             print("\tNo mom0 fits file. Perhaps you ran SoFiA without generating moments?")
             return
-        
+
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
                                              cube_params['bmin'].value)
 
@@ -106,7 +106,7 @@ def make_overlay_usr(source, src_basename, cube_params, patch, opt, base_contour
 
         fig = plt.figure(figsize=(8, 8))
         ax1 = fig.add_subplot(111, projection=opt.wcs)
-        plot_labels(source, ax1)
+        plot_labels(source, ax1, cube_params['default_beam'])
         ax1.imshow(opt.data, origin='lower', cmap='viridis', vmin=np.percentile(opt.data[~np.isnan(opt.data)], perc[0]),
                    vmax=np.percentile(opt.data[~np.isnan(opt.data)], perc[1]))
         # Plot positive contours
@@ -183,7 +183,7 @@ def make_overlay(source, src_basename, cube_params, patch, opt, base_contour, su
 
         fig = plt.figure(figsize=(8, 8))
         ax1 = fig.add_subplot(111, projection=owcs)
-        plot_labels(source, ax1)
+        plot_labels(source, ax1, cube_params['default_beam'])
         if survey == 'hst':
             # ax1.imshow(opt[0].data, origin='lower', cmap='twilight', norm=LogNorm(vmax=5))
             # ax1.imshow(opt[0].data, origin='lower', cmap='Greys', norm=LogNorm(vmin=-0.003, vmax=30))
@@ -263,7 +263,7 @@ def make_mom0(source, src_basename, cube_params, patch, opt_head, base_contour, 
                                              cube_params['bmin'].value)
         fig = plt.figure(figsize=(8, 8))
         ax1 = fig.add_subplot(111, projection=owcs)
-        plot_labels(source, ax1, x_color='white')
+        plot_labels(source, ax1, cube_params['default_beam'], x_color='white')
         im = ax1.imshow(mom0, cmap='gray_r', origin='lower', transform=ax1.get_transform(cubew))
         ax1.set(facecolor="white")  # Doesn't work with the color im
         # Plot positive contours
@@ -347,7 +347,7 @@ def make_snr(source, src_basename, cube_params, patch, opt_head, base_contour, s
         fig = plt.figure(figsize=(8, 8))
         ax1 = fig.add_subplot(111, projection=owcs)
         # ax1 = fig.add_subplot(111, projection=hiwcs)
-        plot_labels(source, ax1)
+        plot_labels(source, ax1, cube_params['default_beam'])
         ax1.set(facecolor="white")  # Doesn't work with the color im
         im = ax1.imshow(snr, cmap=wa_cmap, origin='lower', norm=norm, transform=ax1.get_transform(cubew))
         ax1.contour(mom0, linewidths=2, levels=[base_contour, ], colors=['k', ], transform=ax1.get_transform(cubew))
@@ -476,7 +476,7 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
 
         fig = plt.figure(figsize=(8, 8))
         ax1 = fig.add_subplot(111, projection=owcs)
-        plot_labels(source, ax1)
+        plot_labels(source, ax1, cube_params['default_beam'])
         if not singlechansource:
             im = ax1.imshow(mom1_d, cmap='RdBu_r', origin='lower', transform=ax1.get_transform(cubew))
         else:
@@ -590,7 +590,7 @@ def make_color_im(source, src_basename, cube_params, patch, color_im, opt_head, 
         ax1 = fig.add_subplot(111, projection=owcs)
         # ax1.set_facecolor("darkgray")   # Doesn't work with the color im
         ax1.imshow(color_im, origin='lower')
-        plot_labels(source, ax1, x_color='white')
+        plot_labels(source, ax1, cube_params['default_beam'], x_color='white')
         ax1.contour(mom0, cmap='Oranges', linewidths=1, levels=base_contour * 2 ** np.arange(10), transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes,
                  color='white', fontsize=18)
@@ -656,62 +656,66 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, suffix='png'
         # ax1.imshow(pvd, cmap='gray', aspect='auto', vmin=-3*pvd_rms, vmax=+3*pvd_rms)
         ax1.imshow(pvd, cmap=pvd_map, aspect='auto', norm=divnorm)
 
-        # if np.all (np.isnan (pv[0].data)): continue
-        # Plot positive contours
-        if np.nanmax(pvd) > 3*pvd_rms:
-            ax1.contour(pvd, colors=['k', ], levels=3**np.arange(1, 10)*pvd_rms)
-        # Plot negative contours
-        if np.nanmin(pvd) < -3*pvd_rms:
-            ax1.contour(pvd, colors=['w', ], levels=-pvd_rms * 3**np.arange(10, 0, -1), linestyles=['dashed', ])
-
-        ax1.autoscale(False)
-        if os.path.isfile(src_basename + '_{}_mask.fits'.format(str(source['id']))):
-            print("\tAttempting to overlay mask boundaries on pv diagram ...")
-            mask_pv = create_pv(source, src_basename + '_{}_mask.fits'.format(str(source['id'])), opt_view=opt_view[0])
-            if mask_pv:
-                # Extract_pv has a header bug, reset the reference pixel:
-                mask_pv.header['CRPIX1'] = mask_pv.header['NAXIS1'] / 2 + 1
-                ax1.contour(mask_pv.data, colors='red', levels=[0.01], transform=ax1.get_transform(WCS(mask_pv.header)))
-            print("\t... done.")
+        if np.all(np.isnan(pv[0].data)):
+            print("\tWARNING: Input pv plot is all nan's. For SoFiA-2, may have failed to calculate kin_pa.")
+            pv.close()
+            return
         else:
-            print("\tNo mask cubelet found to overlay mask on pv diagram.")
-        ax1.plot([0.0, 0.0], [freq1, freq2], c='orange', linestyle='--', linewidth=0.75,
-                 transform=ax1.get_transform('world'))
-        ax1.set_title(source['name'], fontsize=16)
-        ax1.tick_params(axis='both', which='major', labelsize=18)
-        ax1.set_xlabel('Angular Offset [deg]', fontsize=16)
-        ax1.text(0.5, 0.05, 'Kinematic PA = {:5.1f} deg'.format(source['kin_pa']), ha='center', va='center',
-                 transform=ax1.transAxes, color='orange', fontsize=18)
-        ax1.coords[1].set_ticks_position('l')
+            # Plot positive contours
+            if np.nanmax(pvd) > 3*pvd_rms:
+                ax1.contour(pvd, colors=['k', ], levels=3**np.arange(1, 10)*pvd_rms)
+            # Plot negative contours
+            if np.nanmin(pvd) < -3*pvd_rms:
+                ax1.contour(pvd, colors=['w', ], levels=-pvd_rms * 3**np.arange(10, 0, -1), linestyles=['dashed', ])
 
-        convention = 'Optical'
-        if 'freq' in source.colnames:
-            freq_sys = source['freq']
-            ax1.plot([ang1, ang2], [freq_sys, freq_sys], c='orange', linestyle='--',
-                     linewidth=0.75, transform=ax1.get_transform('world'))
-            ax1.set_ylabel('Frequency [MHz]', fontsize=16)
-            ax1.coords[1].set_format_unit(u.MHz)
-            # freq_yticks = ax1.get_yticks()  # freq auto yticks from matplotlib
-            ax2 = ax1.twinx()
-            vel1 = const.c.to(u.km / u.s).value * (HI_restfreq.value / freq1 - 1)
-            vel2 = const.c.to(u.km / u.s).value * (HI_restfreq.value / freq2 - 1)
-            ax2.set_ylim(vel1, vel2)
-            ax2.set_ylabel('{} {} velocity [km/s]'.format(cube_params['spec_sys'].capitalize(), convention))
-        else:
-            if cube_params['spec_axis'] == 'VRAD':
-                convention = 'Radio'
-            vel_sys = source['v_col']
-            ax1.plot([ang1, ang2], [vel_sys, vel_sys], c='orange', linestyle='--',
-                     linewidth=0.75, transform=ax1.get_transform('world'))
-            ax1.coords[1].set_format_unit(u.km / u.s)
-            ax1.set_ylabel('{} {} velocity [km/s]'.format(cube_params['spec_sys'].capitalize(), convention,
-                                                          fontsize=18))
-        if pv[0].header['cdelt2'] < 0:
-            ax1.set_ylim(ax1.get_ylim()[::-1])
-            ax1.set_xlim(ax1.get_xlim()[::-1])
+            ax1.autoscale(False)
+            if os.path.isfile(src_basename + '_{}_mask.fits'.format(str(source['id']))):
+                print("\tAttempting to overlay mask boundaries on pv diagram ...")
+                mask_pv = create_pv(source, src_basename + '_{}_mask.fits'.format(str(source['id'])), opt_view=opt_view[0])
+                if mask_pv:
+                    # Extract_pv has a header bug, reset the reference pixel:
+                    mask_pv.header['CRPIX1'] = mask_pv.header['NAXIS1'] / 2 + 1
+                    ax1.contour(mask_pv.data, colors='red', levels=[0.01], transform=ax1.get_transform(WCS(mask_pv.header)))
+                print("\t... done.")
+            else:
+                print("\tNo mask cubelet found to overlay mask on pv diagram.")
+            ax1.plot([0.0, 0.0], [freq1, freq2], c='orange', linestyle='--', linewidth=0.75,
+                     transform=ax1.get_transform('world'))
+            ax1.set_title(source['name'], fontsize=16)
+            ax1.tick_params(axis='both', which='major', labelsize=18)
+            ax1.set_xlabel('Angular Offset [deg]', fontsize=16)
+            ax1.text(0.5, 0.05, 'Kinematic PA = {:5.1f} deg'.format(source['kin_pa']), ha='center', va='center',
+                     transform=ax1.transAxes, color='orange', fontsize=18)
+            ax1.coords[1].set_ticks_position('l')
 
-        fig.savefig(outfile, bbox_inches='tight')
-        pv.close()
+            convention = 'Optical'
+            if 'freq' in source.colnames:
+                freq_sys = source['freq']
+                ax1.plot([ang1, ang2], [freq_sys, freq_sys], c='orange', linestyle='--',
+                         linewidth=0.75, transform=ax1.get_transform('world'))
+                ax1.set_ylabel('Frequency [MHz]', fontsize=16)
+                ax1.coords[1].set_format_unit(u.MHz)
+                # freq_yticks = ax1.get_yticks()  # freq auto yticks from matplotlib
+                ax2 = ax1.twinx()
+                vel1 = const.c.to(u.km / u.s).value * (HI_restfreq.value / freq1 - 1)
+                vel2 = const.c.to(u.km / u.s).value * (HI_restfreq.value / freq2 - 1)
+                ax2.set_ylim(vel1, vel2)
+                ax2.set_ylabel('{} {} velocity [km/s]'.format(cube_params['spec_sys'].capitalize(), convention))
+            else:
+                if cube_params['spec_axis'] == 'VRAD':
+                    convention = 'Radio'
+                vel_sys = source['v_col']
+                ax1.plot([ang1, ang2], [vel_sys, vel_sys], c='orange', linestyle='--',
+                         linewidth=0.75, transform=ax1.get_transform('world'))
+                ax1.coords[1].set_format_unit(u.km / u.s)
+                ax1.set_ylabel('{} {} velocity [km/s]'.format(cube_params['spec_sys'].capitalize(), convention,
+                                                              fontsize=18))
+            if pv[0].header['cdelt2'] < 0:
+                ax1.set_ylim(ax1.get_ylim()[::-1])
+                ax1.set_xlim(ax1.get_xlim()[::-1])
+
+            fig.savefig(outfile, bbox_inches='tight')
+            pv.close()
 
     else:
         print('\t{} already exists. Will not overwrite.'.format(outfile))
@@ -877,8 +881,15 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
         surveys.remove('panstarrs')
 
     # If requested plot HI contours on DECaLS imaging
+    dev_dr = False
+    if 'decals' in surveys and 'decals-dev' in surveys:
+        print("\tERROR: Only one between decals and decals-dev can be given.")
+        exit()
+    elif 'decals-dev' in surveys:
+        surveys[surveys.index('decals-dev')] = 'decals'
+        dev_dr = True
     if ('decals' in surveys) and (hi_pos_common.frame.name != 'galactic'):
-        decals_im, decals_head = get_decals(hi_pos_common, opt_view=opt_view)
+        decals_im, decals_head = get_decals(hi_pos_common, opt_view=opt_view, dev_dr=dev_dr)
         make_color_im(source, src_basename, cube_params, patch, decals_im, decals_head, HIlowest, suffix=suffix,
                       survey='decals')
         if surveys[0] == 'decals':
