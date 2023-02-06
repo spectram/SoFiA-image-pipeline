@@ -267,11 +267,17 @@ def make_mom0(source, src_basename, cube_params, patch, opt_head, base_contour, 
         im = ax1.imshow(mom0, cmap='gray_r', origin='lower', transform=ax1.get_transform(cubew))
         ax1.set(facecolor="white")  # Doesn't work with the color im
         # Plot positive contours
-        ax1.contour(mom0, cmap='Oranges_r', linewidths=1.2, levels=base_contour * 2 ** np.arange(10), transform=ax1.get_transform(cubew))
-        # Plot negative contours
-        if np.nanmin(mom0) < -base_contour:
+        if base_contour > 0.0:
+            ax1.contour(mom0, cmap='Oranges_r', linewidths=1.2, levels=base_contour * 2 ** np.arange(10),
+                        transform=ax1.get_transform(cubew))
+        # Plot negative contours when there's still positive emission
+            if np.nanmin(mom0) < -base_contour:
+                ax1.contour(mom0, cmap='YlOrBr_r', linewidths=1.2, linestyles='dashed',
+                            levels=-base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
+        # Plot negative contours when there's no positive emission
+        else:
             ax1.contour(mom0, cmap='YlOrBr_r', linewidths=1.2, linestyles='dashed',
-                        levels=-base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
+                        levels=base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes, fontsize=18)
         ax1.add_patch(Ellipse((0.92, 0.9), height=patch['height'], width=patch['width'], angle=cube_params['bpa'],
                               transform=ax1.transAxes, facecolor='darkorange', edgecolor='black', linewidth=1))
@@ -349,7 +355,7 @@ def make_snr(source, src_basename, cube_params, patch, opt_head, base_contour, s
         # ax1 = fig.add_subplot(111, projection=hiwcs)
         plot_labels(source, ax1, cube_params['default_beam'])
         ax1.set(facecolor="white")  # Doesn't work with the color im
-        im = ax1.imshow(snr, cmap=wa_cmap, origin='lower', norm=norm, transform=ax1.get_transform(cubew))
+        im = ax1.imshow(np.abs(snr), cmap=wa_cmap, origin='lower', norm=norm, transform=ax1.get_transform(cubew))
         ax1.contour(mom0, linewidths=2, levels=[base_contour, ], colors=['k', ], transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_label, ha='center', va='center', transform=ax1.transAxes, fontsize=18)
         ax1.add_patch(Ellipse((0.92, 0.9), height=patch['height'], width=patch['width'], angle=cube_params['bpa'],
@@ -468,7 +474,10 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
         # Only plot values above the lowest calculated HI value:
         hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
         mom0 = hdulist_hi[0].data
-        mom1_d[mom0 < base_contour] = np.nan
+        if base_contour > 0.0:
+            mom1_d[mom0 < base_contour] = np.nan
+        else:
+            mom1_d[mom0 > base_contour] = np.nan
         owcs = WCS(opt_head)
 
         hi_pos = SkyCoord(source['pos_x'], source['pos_y'], unit='deg')
@@ -591,7 +600,18 @@ def make_color_im(source, src_basename, cube_params, patch, color_im, opt_head, 
         # ax1.set_facecolor("darkgray")   # Doesn't work with the color im
         ax1.imshow(color_im, origin='lower')
         plot_labels(source, ax1, cube_params['default_beam'], x_color='white')
-        ax1.contour(mom0, cmap='Oranges', linewidths=1, levels=base_contour * 2 ** np.arange(10), transform=ax1.get_transform(cubew))
+        # Plot positive contours
+        if base_contour > 0.0:
+            ax1.contour(mom0, cmap='Oranges', linewidths=1.2, levels=base_contour * 2 ** np.arange(10),
+                        transform=ax1.get_transform(cubew))
+            # Plot negative contours when there's still positive emission
+            if np.nanmin(mom0) < -base_contour:
+                ax1.contour(mom0, cmap='YlOrBr', linewidths=1.2, linestyles='dashed',
+                            levels=-base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
+        # Plot negative contours when there's no positive emission
+        else:
+            ax1.contour(mom0, cmap='YlOrBr', linewidths=1.2, linestyles='dashed',
+                        levels=base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes,
                  color='white', fontsize=18)
         ax1.add_patch(Ellipse((0.92, 0.9), height=patch['height'], width=patch['width'], angle=cube_params['bpa'],
@@ -610,7 +630,7 @@ def make_color_im(source, src_basename, cube_params, patch, color_im, opt_head, 
 
 
 # Make pv plot for object
-def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, suffix='png'):
+def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, min_axis=True, suffix='png'):
     """Plot the position-velocity slice for the source.
 
     :param source: source object
@@ -621,18 +641,23 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, suffix='png'
     :type cube_params: dict
     :param opt_view: requested size of the image for regriding
     :type opt_view: quantity
+    :param min_axis: flag for extracting major or minor axis
+    :type min_axis: boolean
     :param suffix: image file type
     :type suffix: str
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_pv.{}'.format(source['id'], suffix)
+    pv_axis = 'pv'
+    if min_axis == True:
+        pv_axis = 'pv_min'
+    outfile = src_basename.replace('cubelets', 'figures') + '_{}_{}.{}'.format(source['id'], pv_axis, suffix)
 
     if not os.path.isfile(outfile):
         try:
-            print("\tMaking pv diagram.")
-            pv = fits.open(src_basename + '_{}_pv.fits'.format(str(source['id'])))
+            print("\tMaking {} diagram.".format(pv_axis))
+            pv = fits.open(src_basename + '_{}_{}.fits'.format(str(source['id']), pv_axis))
         except FileNotFoundError:
-            print("\tNo pv fits file. Perhaps you ran source finding with an old version of SoFiA-2?")
+            print("\tNo {} fits file. Perhaps you ran source finding with an old version of SoFiA-2?".format(pv_axis))
             return
 
         # For plotting mask, reproject needs to know unit explicitly, whereas WCS assumes it is degs (deprecated?)
@@ -657,7 +682,7 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, suffix='png'
         ax1.imshow(pvd, cmap=pvd_map, aspect='auto', norm=divnorm)
 
         if np.all(np.isnan(pv[0].data)):
-            print("\tWARNING: Input pv plot is all nan's. For SoFiA-2, may have failed to calculate kin_pa.")
+            print("\tWARNING: Input {} plot is all nan's. For SoFiA-2, may have failed to calculate kin_pa.".format(pv_axis))
             pv.close()
             return
         else:
@@ -670,21 +695,28 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, suffix='png'
 
             ax1.autoscale(False)
             if os.path.isfile(src_basename + '_{}_mask.fits'.format(str(source['id']))):
-                print("\tAttempting to overlay mask boundaries on pv diagram ...")
-                mask_pv = create_pv(source, src_basename + '_{}_mask.fits'.format(str(source['id'])), opt_view=opt_view[0])
+                print("\tAttempting to overlay mask boundaries on {} diagram ...".format(pv_axis))
+                mask_pv = create_pv(source, src_basename + '_{}_mask.fits'.format(str(source['id'])),
+                                    opt_view=opt_view[0], min_axis=min_axis)
                 if mask_pv:
                     # Extract_pv has a header bug, reset the reference pixel:
                     mask_pv.header['CRPIX1'] = mask_pv.header['NAXIS1'] / 2 + 1
                     ax1.contour(mask_pv.data, colors='red', levels=[0.01], transform=ax1.get_transform(WCS(mask_pv.header)))
                 print("\t... done.")
             else:
-                print("\tNo mask cubelet found to overlay mask on pv diagram.")
+                print("\tNo mask cubelet found to overlay mask on {} diagram.".format(pv_axis))
             ax1.plot([0.0, 0.0], [freq1, freq2], c='orange', linestyle='--', linewidth=0.75,
                      transform=ax1.get_transform('world'))
             ax1.set_title(source['name'], fontsize=16)
             ax1.tick_params(axis='both', which='major', labelsize=18)
             ax1.set_xlabel('Angular Offset [deg]', fontsize=16)
-            ax1.text(0.5, 0.05, 'Kinematic PA = {:5.1f} deg'.format(source['kin_pa']), ha='center', va='center',
+            pos_angle = source['kin_pa']
+            pa_label = 'Kinematic PA'
+            if pv_axis == 'pv_min':
+                pos_angle += 90.
+                if (pos_angle >= 360.): pos_angle -= 360.
+                pa_label = 'Minor Axis PA'
+            ax1.text(0.5, 0.05, '{} = {:5.1f} deg'.format(pa_label, pos_angle), ha='center', va='center',
                      transform=ax1.transAxes, color='orange', fontsize=18)
             ax1.coords[1].set_ticks_position('l')
 
@@ -751,8 +783,8 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
     try:
         with fits.open(src_basename + '_{}_snr.fits'.format(str(source['id']))) as hdulist_snr, \
                 fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id']))) as hdulist_hi:
-            HIlowest = np.median(hdulist_hi[0].data[(hdulist_snr[0].data > snr_range[0]) *
-                                                    (hdulist_snr[0].data < snr_range[1])])
+            HIlowest = np.median(hdulist_hi[0].data[(np.abs(hdulist_snr[0].data) > snr_range[0]) *
+                                                    (np.abs(hdulist_snr[0].data) < snr_range[1])])
         print("\tThe first HI contour defined at SNR = {0} has level = {1:.3e} (mom0 data units).".format(snr_range,
                                                                                                           HIlowest))
     # If no SNR map use the channel width of the original data (provided by user if necessary) for lowest HI contour.
@@ -949,8 +981,9 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
         make_snr(source, src_basename, cube_params, patch, opt_head, HIlowest, suffix=suffix)
         make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, HIlowest, suffix=suffix, sofia=2)
 
-    # Make pv if it was created (only in SoFiA-1); not dependent on having a survey image to regrid to.
-    make_pv(source, src_basename, cube_params, opt_view=opt_view, suffix=suffix)
+    # Make pv and/or pv_min if they were created; not dependent on having a survey image to regrid to.
+    make_pv(source, src_basename, cube_params, opt_view=opt_view, suffix=suffix, min_axis=False)
+    make_pv(source, src_basename, cube_params, opt_view=opt_view, suffix=suffix, min_axis=True)
 
     plt.close('all')
 
