@@ -6,6 +6,11 @@ from astropy.wcs import WCS
 import numpy as np
 from pvextractor import extract_pv_slice, PathFromCenter
 
+HI_restfreq = 1420405751.77 * u.Hz
+
+
+###################################################################
+
 
 def chan2freq(channels, fits_name):
     """Convert channels to frequencies.
@@ -67,8 +72,9 @@ def felo2vel(channels, fits_name):
     return velocities
 
 
-def sbr2nhi(sbr, bunit, bmaj, bmin):
-    """Get the HI column density from sbr.
+def sbr2nhi(sbr, bunit, bmaj, bmin, source):
+    """Get the HI column density from sbr.  See Section 15 of Meyer et al (2017) for equations: 
+    https://ui.adsabs.harvard.edu/abs/2017PASA...34...52M/abstract
 
     :param sbr: SBR
     :type sbr: float
@@ -76,22 +82,49 @@ def sbr2nhi(sbr, bunit, bmaj, bmin):
     :type bunit: str
     :param bmaj: major axis of the beam
     :type bmaj: float
-    :param bmin: minor axis of the bea,
+    :param bmin: minor axis of the beam
     :type bmin: float
+    :param source: source object
+    :type source: Astropy table
     :return: column density
     :rtype: float
     """
-    # NEED TO ADD UNITS THAT ANNOYINGLY COME OUT OF SPECTRAL CUBE! DONE?
+
+    c = const.c.to(u.m/u.s).value
+    
     if (bunit == 'Jy/beam*m/s') or (bunit == 'Jy/beam*M/S'):
-      nhi = 1.104e+21 * sbr / bmaj / bmin
+        print("\tWARNING: Assumes velocity axis of cube is in the *observed* frame. If cube is in source rest frame, "
+              "the column density is (1+z) times greater than shown.")
+        if ('v_rad' in source.colnames): # or (cube_params['spec_axis'] == 'VRAD'): # Taken from make_images.py.
+            # First convert to observed frequency, then to redshift following these equations:
+            # https://web-archives.iram.fr/ARN/may95/node4.html
+            print("\tWARNING: HI column density calculation assumes optical velocity convention. Data is in radio convention!")
+            vel_sys = source['v_rad']
+            freq_sys = HI_restfreq * (1 - vel_sys/c)
+            z = (HI_restfreq - freq_sys) / freq_sys
+        elif 'v_opt' in source.colnames:
+            vel_sys = source['v_opt']
+            z = vel_sys / c
+        elif 'v_app' in source.colnames:
+            vel_sys = source['v_app']
+            z = vel_sys / c
+        nhi = 1.104e+21 * (1 + z) ** 2 * sbr / bmaj / bmin
     elif (bunit == 'Jy/beam*Hz') or (bunit == 'beam-1 Jy*Hz'):
-      nhi = 2.330e+20 * sbr / bmaj / bmin
+        freq_sys = source['freq']
+        z = (HI_restfreq.value - freq_sys) / freq_sys
+        nhi = 2.330e+20 * (1 + z) ** 4 * sbr / bmaj / bmin
     else:
-      print("\tWARNING: Mom0 imag units are not Jy/beam*m/s or Jy/beam*Hz. Cannot convert to HI column density.")
-      nhi = sbr
-    nhi_ofm = np.int(np.floor(np.log10(np.abs(nhi))))
+        print("\tWARNING: Mom0 image units are not Jy/beam*m/s or Jy/beam*Hz. Cannot convert to HI column density.")
+        nhi = sbr
+    
+    if np.isfinite(nhi):
+        nhi_ofm = np.int(np.floor(np.log10(np.abs(nhi))))
+    else:
+        nhi_ofm = 0
+    
     nhi_label = '$N_\mathrm{{HI}}$ = {0:.1f} x $10^{{ {1:d} }}$ cm$^{{-2}}$'.format(nhi/10**nhi_ofm, nhi_ofm)
     nhi_labels = '$N_\mathrm{{HI}}$ = $2^n$ x {0:.1f} x $10^{{ {1:d} }}$ cm$^{{-2}}$ ($n$=0,1,...)'.format(nhi/10**nhi_ofm, nhi_ofm)
+    
     return nhi, nhi_label, nhi_labels
 
 
@@ -136,7 +169,15 @@ def get_info(fits_name, beam=None):
             bmaj = header['BMAJ'] * 3600. * u.arcsec
             bmin = header['BMIN'] * 3600. * u.arcsec
             bpa = header['BPA']
-            print(f"\tFound {bmaj:.1f} by {bmin:.1f} beam with PA={bpa:.1f} deg in primary header.")
+            if bmaj * bmin == 0.0:
+                print("\tWARNING: BMAJ and/or BMIN in header = 0! "
+                      "Assuming beam is 3.5x3.5 pixels"
+                      "\n\t\tColumn density and beam plotted as order of magnitude estimate ONLY. "
+                      "\n\t\tRerun with -b and provide beam info to remove red strikethroughs on plots.")
+                bmaj, bmin, bpa = 3.5 * cellsize, 3.5 * cellsize, 0
+                default_beam = True
+            else:
+                print(f"\tFound {bmaj:.1f} by {bmin:.1f} beam with PA={bpa:.1f} deg in primary header.")
         except:
             print("\tWARNING: Couldn't find beam in primary header information; in other extension? "
                   "Assuming beam is 3.5x3.5 pixels"
@@ -185,15 +226,19 @@ def get_info(fits_name, beam=None):
         print("\tFound {} reference frame specified in SPECSYS in header.".format(spec_sys))
     except:
         try:
-            velref = header['VELREF']
-            if velref == 1: spec_sys = 'LSR'
-            if velref == 2: spec_sys = 'HELIOCEN'
-            if velref == 3: spec_sys = 'TOPOCENT'
-            print("\tDerived {} reference frame from VELREF in header using AIPS convention.".format(spec_sys))
+            spec_sys = header['SPECSYS3']
+            print("\tFound {} reference frame specified in SPECSYS3 in header.".format(spec_sys))
         except:
-            # Comment this message out for now...program checks later.
-            # print("\tNo SPECSYS or VELREF in header to define reference frame, checking CTYPE3.")
-            pass
+            try:
+                velref = header['VELREF']
+                if velref == 1: spec_sys = 'LSR'
+                if velref == 2: spec_sys = 'HELIOCEN'
+                if velref == 3: spec_sys = 'TOPOCENT'
+                print("\tDerived {} reference frame from VELREF in header using AIPS convention.".format(spec_sys))
+            except:
+                # Comment this message out for now...program checks later.
+                print("\tNo SPECSYS, SPECSYS3, or VELREF in header to define reference frame, will check CTYPE3.")
+                pass
 
     # Try to determine the spectral properties
     if fits_name[-9:] != 'cube.fits':

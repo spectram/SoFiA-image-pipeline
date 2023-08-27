@@ -90,7 +90,7 @@ def make_overlay_usr(source, src_basename, cube_params, patch, opt, base_contour
             return
 
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
-                                             cube_params['bmin'].value)
+                                             cube_params['bmin'].value, source)
 
         try:
             hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
@@ -110,10 +110,11 @@ def make_overlay_usr(source, src_basename, cube_params, patch, opt, base_contour
         ax1.imshow(opt.data, origin='lower', cmap='viridis', vmin=np.percentile(opt.data[~np.isnan(opt.data)], perc[0]),
                    vmax=np.percentile(opt.data[~np.isnan(opt.data)], perc[1]))
         # Plot positive contours
-        ax1.contour(hdulist_hi[0].data, cmap='Oranges', linewidths=1, levels=base_contour * 2 ** np.arange(10),
+        if np.isfinite(base_contour):
+            ax1.contour(hdulist_hi[0].data, cmap='Oranges', linewidths=1, levels=base_contour * 2 ** np.arange(10),
                     transform=ax1.get_transform(cubew))
         # Plot negative contours
-        if np.nanmin(hdulist_hi[0].data) < -base_contour:
+        if np.nanmin(hdulist_hi[0].data) < -base_contour and np.isfinite(base_contour):
             ax1.contour(hdulist_hi[0].data, cmap='BuPu_r', linewidths=1.2, linestyles='dashed',
                         levels=-base_contour * 2 ** np.arange(10, -1, -1),
                         transform=ax1.get_transform(cubew))
@@ -166,7 +167,7 @@ def make_overlay(source, src_basename, cube_params, patch, opt, base_contour, su
             return
 
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
-                                             cube_params['bmin'].value)
+                                             cube_params['bmin'].value, source)
         try:
             hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
         except FileNotFoundError:
@@ -188,20 +189,26 @@ def make_overlay(source, src_basename, cube_params, patch, opt, base_contour, su
             # ax1.imshow(opt[0].data, origin='lower', cmap='twilight', norm=LogNorm(vmax=5))
             # ax1.imshow(opt[0].data, origin='lower', cmap='Greys', norm=LogNorm(vmin=-0.003, vmax=30))
             ax1.imshow(opt[0].data, origin='lower', cmap='Greys',
-                       norm=PowerNorm(gamma=0.25, vmin=np.percentile(opt[0].data, 20),
+                       norm=PowerNorm(gamma=0.4, vmin=np.percentile(opt[0].data, 20),
                                       vmax=np.percentile(opt[0].data, 99.5)))
+            # Plot positive contours
+            ax1.contour(hdulist_hi[0].data, cmap='Blues_r', linewidths=1, levels=base_contour * 2 ** np.arange(10),
+                    transform=ax1.get_transform(cubew))
+            ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes, color='black', fontsize=18)
         else:
             ax1.imshow(opt[0].data, cmap='viridis', vmin=np.percentile(opt[0].data, 10),
                        vmax=np.percentile(opt[0].data, 99.8), origin='lower')
-        # Plot positive contours
-        ax1.contour(hdulist_hi[0].data, cmap='Oranges', linewidths=1, levels=base_contour * 2 ** np.arange(10),
-                    transform=ax1.get_transform(cubew))
-        # Plot negative contours
-        if np.nanmin(hdulist_hi[0].data) < -base_contour:
-            ax1.contour(hdulist_hi[0].data, cmap='BuPu_r', linewidths=1.2, linestyles='dashed',
-                        levels=-base_contour * 2 ** np.arange(10, -1, -1),
-                        transform=ax1.get_transform(cubew))
-        ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes, color='white', fontsize=18)
+            # Plot positive contours
+            if np.isfinite(base_contour):
+                ax1.contour(hdulist_hi[0].data, cmap='Oranges', linewidths=1, levels=base_contour * 2 ** np.arange(10),
+                            transform=ax1.get_transform(cubew))
+            # Plot negative contours
+            if np.nanmin(hdulist_hi[0].data) < -base_contour and np.isfinite(base_contour):
+                ax1.contour(hdulist_hi[0].data, cmap='BuPu_r', linewidths=1.2, linestyles='dashed',
+                            levels=-base_contour * 2 ** np.arange(10, -1, -1),
+                            transform=ax1.get_transform(cubew))
+            ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes, color='white', fontsize=18)
+                
         ax1.add_patch(Ellipse((0.92, 0.9), height=patch['height'], width=patch['width'], angle=cube_params['bpa'],
                               transform=ax1.transAxes, edgecolor='white', linewidth=1))
 
@@ -260,22 +267,22 @@ def make_mom0(source, src_basename, cube_params, patch, opt_head, base_contour, 
         owcs = WCS(opt_head)
 
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
-                                             cube_params['bmin'].value)
+                                             cube_params['bmin'].value, source)
         fig = plt.figure(figsize=(8, 8))
         ax1 = fig.add_subplot(111, projection=owcs)
         plot_labels(source, ax1, cube_params['default_beam'], x_color='white')
         im = ax1.imshow(mom0, cmap='gray_r', origin='lower', transform=ax1.get_transform(cubew))
         ax1.set(facecolor="white")  # Doesn't work with the color im
         # Plot positive contours
-        if base_contour > 0.0:
+        if np.isfinite(base_contour) and base_contour > 0.0:
             ax1.contour(mom0, cmap='Oranges_r', linewidths=1.2, levels=base_contour * 2 ** np.arange(10),
                         transform=ax1.get_transform(cubew))
         # Plot negative contours when there's still positive emission
-            if np.nanmin(mom0) < -base_contour:
+            if np.nanmin(mom0) < -base_contour and np.isfinite(base_contour):
                 ax1.contour(mom0, cmap='YlOrBr_r', linewidths=1.2, linestyles='dashed',
                             levels=-base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
         # Plot negative contours when there's no positive emission
-        else:
+        elif np.isfinite(base_contour):
             ax1.contour(mom0, cmap='YlOrBr_r', linewidths=1.2, linestyles='dashed',
                         levels=base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes, fontsize=18)
@@ -346,7 +353,7 @@ def make_snr(source, src_basename, cube_params, patch, opt_head, base_contour, s
         owcs = WCS(opt_head)
 
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
-                                             cube_params['bmin'].value)
+                                             cube_params['bmin'].value, source)
         wa_cmap = colors.ListedColormap(['w', 'royalblue', 'limegreen', 'yellow', 'orange', 'r'])
         boundaries = [0, 1, 2, 3, 4, 5, 6]
         norm = colors.BoundaryNorm(boundaries, wa_cmap.N, clip=True)
@@ -356,7 +363,8 @@ def make_snr(source, src_basename, cube_params, patch, opt_head, base_contour, s
         plot_labels(source, ax1, cube_params['default_beam'])
         ax1.set(facecolor="white")  # Doesn't work with the color im
         im = ax1.imshow(np.abs(snr), cmap=wa_cmap, origin='lower', norm=norm, transform=ax1.get_transform(cubew))
-        ax1.contour(mom0, linewidths=2, levels=[base_contour, ], colors=['k', ], transform=ax1.get_transform(cubew))
+        if np.isfinite(base_contour):
+            ax1.contour(mom0, linewidths=2, levels=[base_contour, ], colors=['k', ], transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_label, ha='center', va='center', transform=ax1.transAxes, fontsize=18)
         ax1.add_patch(Ellipse((0.92, 0.9), height=patch['height'], width=patch['width'], angle=cube_params['bpa'],
                               transform=ax1.transAxes, facecolor='gold', edgecolor='indigo', linewidth=1))
@@ -442,7 +450,13 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
             # Convert moment map from m/s into units of km/s.
             mom1[0].data = (mom1[0].data * u.m / u.s).to(u.km / u.s).value
             # Calculate spectral quantities for plotting
-            v_sys = (source['v_col'] * u.m / u.s).to(u.km / u.s).value
+            if ('v_rad' in source.colnames) or (cube_params['spec_axis'] == 'VRAD'):
+                convention = 'Radio'
+                v_sys = (source['v_rad'] * u.m / u.s).to(u.km / u.s).value
+            elif 'v_opt' in source.colnames:
+                v_sys = (source['v_opt'] * u.m / u.s).to(u.km / u.s).value
+            elif 'v_app' in source.colnames:
+                v_sys = (source['v_app'] * u.m / u.s).to(u.km / u.s).value
             # SoFiA-2 puts out velocity w20/w50 in pixel units. https://github.com/SoFiA-Admin/SoFiA-2/issues/63
             w50 = (source['w50'] * u.m / u.s).to(u.km / u.s).value
             w20 = (source['w20'] * u.m / u.s).to(u.km / u.s).value
@@ -450,8 +464,6 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
                               '_{}_cube.fits'.format(source['id'])).to(u.km / u.s).value
             velmax = chan2vel(source['z_max'], src_basename +
                               '_{}_cube.fits'.format(source['id'])).to(u.km / u.s).value
-            if cube_params['spec_axis'] == 'VRAD':
-                convention = 'Radio'
 
         if velmin == velmax:
             singlechansource = True
@@ -474,10 +486,12 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
         # Only plot values above the lowest calculated HI value:
         hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
         mom0 = hdulist_hi[0].data
-        if base_contour > 0.0:
+        if base_contour > 0.0 and np.isfinite(base_contour):
             mom1_d[mom0 < base_contour] = np.nan
-        else:
+        elif np.isfinite(base_contour):
             mom1_d[mom0 > base_contour] = np.nan
+        else:
+            mom1_d *= np.nan
         owcs = WCS(opt_head)
 
         hi_pos = SkyCoord(source['pos_x'], source['pos_y'], unit='deg')
@@ -517,6 +531,21 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
                          xytext=(p2x, p2y), textcoords=ax1.get_transform('world'),
                          arrowprops=dict(arrowstyle="->,head_length=0.8,head_width=0.4", connectionstyle="arc3",
                                          linestyle='--'))
+        # Plot the minor axis if pv_min was created by SoFiA:
+        if os.path.isfile(src_basename + '_{}_pv_min.fits'.format(source['id'])):
+            pa_min = kinpa + 90. * u.deg
+            p1x, p1y = (hi_pos.ra + 0.35 * opt_view[0] * np.sin(pa_min) / np.cos(hi_pos.dec)).deg,\
+                       (hi_pos.dec + 0.35 * opt_view[0] * np.cos(pa_min)).deg
+            p2x, p2y = (hi_pos.ra - 0.35 * opt_view[0] * np.sin(pa_min) / np.   cos(hi_pos.dec)).deg,\
+                       (hi_pos.dec - 0.35 * opt_view[0] * np.cos(pa_min)).deg
+            # Assume same issues with Galactic coordinates with plotting min PA as kinpa above
+            if 'l' in source.colnames:
+                ax1.plot([p1x, p2x], [p1y, p2y], linestyle=':', color='k', transform=ax1.get_transform('world'))
+            else:
+                ax1.annotate("", xy=(p1x, p1y), xycoords=ax1.get_transform('world'),
+                            xytext=(p2x, p2y), textcoords=ax1.get_transform('world'),
+                            arrowprops=dict(arrowstyle="->,head_length=0.8,head_width=0.4", connectionstyle="arc3",
+                                            linestyle=':'))
 
         ax1.text(0.5, 0.05, v_sys_label, ha='center', va='center', transform=ax1.transAxes, color='black', fontsize=18)
         if not singlechansource:
@@ -592,7 +621,7 @@ def make_color_im(source, src_basename, cube_params, patch, color_im, opt_head, 
         mom0 = hdulist_hi[0].data
 
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
-                                             cube_params['bmin'].value)
+                                             cube_params['bmin'].value, source)
 
         owcs = WCS(opt_head)
         fig = plt.figure(figsize=(8, 8))
@@ -600,18 +629,19 @@ def make_color_im(source, src_basename, cube_params, patch, color_im, opt_head, 
         # ax1.set_facecolor("darkgray")   # Doesn't work with the color im
         ax1.imshow(color_im, origin='lower')
         plot_labels(source, ax1, cube_params['default_beam'], x_color='white')
-        # Plot positive contours
-        if base_contour > 0.0:
-            ax1.contour(mom0, cmap='Oranges', linewidths=1.2, levels=base_contour * 2 ** np.arange(10),
-                        transform=ax1.get_transform(cubew))
-            # Plot negative contours when there's still positive emission
-            if np.nanmin(mom0) < -base_contour:
+        if np.isfinite(base_contour):
+            # Plot positive contours
+            if base_contour > 0.0:
+                ax1.contour(mom0, cmap='Oranges', linewidths=1.2, levels=base_contour * 2 ** np.arange(10),
+                            transform=ax1.get_transform(cubew))
+                # Plot negative contours when there's still positive emission
+                if np.nanmin(mom0) < -base_contour:
+                    ax1.contour(mom0, cmap='YlOrBr', linewidths=1.2, linestyles='dashed',
+                                levels=-base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
+            # Plot negative contours when there's no positive emission
+            else:
                 ax1.contour(mom0, cmap='YlOrBr', linewidths=1.2, linestyles='dashed',
-                            levels=-base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
-        # Plot negative contours when there's no positive emission
-        else:
-            ax1.contour(mom0, cmap='YlOrBr', linewidths=1.2, linestyles='dashed',
-                        levels=base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
+                            levels=base_contour * 2 ** np.arange(10, -1, -1), transform=ax1.get_transform(cubew))
         ax1.text(0.5, 0.05, nhi_labels, ha='center', va='center', transform=ax1.transAxes,
                  color='white', fontsize=18)
         ax1.add_patch(Ellipse((0.92, 0.9), height=patch['height'], width=patch['width'], angle=cube_params['bpa'],
@@ -734,9 +764,13 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, min_axis=Tru
                 ax2.set_ylim(vel1, vel2)
                 ax2.set_ylabel('{} {} velocity [km/s]'.format(cube_params['spec_sys'].capitalize(), convention))
             else:
-                if cube_params['spec_axis'] == 'VRAD':
+                if ('v_rad' in source.colnames) or (cube_params['spec_axis'] == 'VRAD'):
                     convention = 'Radio'
-                vel_sys = source['v_col']
+                    vel_sys = source['v_rad']
+                elif 'v_opt' in source.colnames:
+                    vel_sys = source['v_opt']
+                elif 'v_app' in source.colnames:
+                    vel_sys = source['v_app']
                 ax1.plot([ang1, ang2], [vel_sys, vel_sys], c='orange', linestyle='--',
                          linewidth=0.75, transform=ax1.get_transform('world'))
                 ax1.coords[1].set_format_unit(u.km / u.s)
@@ -792,9 +826,8 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
         if os.path.isfile(src_basename + '_{}_mom0.fits'.format(str(source['id']))):
             print("\tNo SNR fits file found. Will determine lowest contour based on rms in catalog,"
                   " min(user provided SNR), and user provided channel width.")
-            # Probably never uses the first instance of if statement (this would be weird to save in mom0 map)
             if cube_params['chan_width']:
-                HIlowest = source['rms'] * np.nanmin(snr_range) * cube_params['chan_width']
+                HIlowest = source['rms'] * np.nanmin(snr_range) * np.abs(cube_params['chan_width'].value)
             # Assumes user gives chan_width in correct units of original data but SIP knows units from mom0 header!
             elif chan_width:
                 HIlowest = source['rms'] * np.nanmin(snr_range) * chan_width
