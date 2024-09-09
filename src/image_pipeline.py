@@ -21,8 +21,8 @@ version = pkg_resources.require("SoFiA-image-pipeline")[0].version
 ###################################################################
 
 def main():
-    parser = ArgumentParser(description="Create images from a SoFiA catalog and cubelets, or fits file. \n"
-                                        "Only works with SoFiA-2 and wcs=True (for now).",
+    parser = ArgumentParser(description="Welcome to the SoFiA Image Pipeline, version {}.\n"
+                            "Create images from a SoFiA catalog and cubelets, or fits file. Only works with SoFiA-2 and wcs=True (for now).".format(version),
                             formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-c', '--catalog', required=True,
@@ -57,10 +57,10 @@ def main():
                             ' of all pixels whose SNR value is within the given range. Default is [2,3].')
 
     parser.add_argument('-s', '--surveys', default=[], nargs='*', type=str,
-                        help='Specify SkyView surveys to retrieve from astroquery on which to overlay HI contours.\n'
-                            ' These additional non-SkyView options are also available: \'decals\',\'panstarrs\',\'hst\'.\n'
-                            ' \'hst\' only refers to COSMOS HST (e.g. for CHILES). Default is "DSS2 Blue" if no user\n' 
-                            ' provided image.')
+                        help='Specify SkyView surveys to retrieve from astroquery on which to overlay HI contours. These\n'
+                            ' additional non-SkyView options are also available: \'decals\',\'decals-dr9\',\'decaps\',\n'
+                            ' \'panstarrs\',\'hst\'. \'hst\' only refers to COSMOS HST (e.g. for CHILES). Default is "DSS2 Blue"\n' 
+                            ' if no user provided image.')
 
     parser.add_argument('-m', '--imagemagick', nargs='?', type=str, default='', const='convert',
                         help='Optional: combine the main plots into single large image file using the IMAGEMAGICK CONVERT task.\n'
@@ -74,6 +74,10 @@ def main():
 
     parser.add_argument('-ur', '--user-range', default=[10., 99.], nargs=2, type=float,
                         help='Optional: Percentile range used when displaying the user image (see "-ui"). Default is [10,99].')
+
+    parser.add_argument('-line', '--spectral-line', default=None,
+                        help='Optional: Provide name of spectral line such as "CO" for "CO(1-0)". Default is "HI".\n'
+                            ' See github for more details on available lines.  Work in progress.')
 
     ###################################################################
 
@@ -189,10 +193,13 @@ def main():
             print("\n\t-Source {}: {}.".format(source['id'], source['name']))
             make_images.main(source, src_basename, opt_view=opt_view, suffix=suffix, sofia=sofia, beam=beam,
                              chan_width=args.chan_width[0], surveys=list(surveys), snr_range=args.snr_range,
-                             user_image=args.user_image, user_range=args.user_range)
-            make_spectra.main(source, src_basename, original, suffix=suffix, beam=beam)
+                             user_image=args.user_image, user_range=args.user_range, spec_line=args.spectral_line)
+            make_spectra.main(source, src_basename, original, spec_line=args.spectral_line, suffix=suffix, beam=beam)
 
             if imagemagick:
+                if 'decals-dr9' in surveys:
+                    surveys=list(surveys)
+                    surveys[surveys.index('decals-dr9')] = 'decals'
                 combine_images(source, src_basename, imagemagick, suffix=suffix, surveys=list(surveys), user_image=args.user_image)
 
             n_src += 1

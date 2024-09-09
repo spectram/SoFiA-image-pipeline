@@ -6,11 +6,7 @@ from astropy import units as u
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.modules.functions import chan2freq, chan2vel, get_info, get_subcube, felo2vel
-
-
-HI_restfreq = 1420405751.77 * u.Hz
-optical_HI = u.doppler_optical(HI_restfreq)
+from src.modules.functions import chan2freq, chan2vel, get_info, get_subcube, felo2vel, line_lookup
 
 
 ###################################################################
@@ -30,17 +26,21 @@ def get_noise_spec(source, src_basename, cube_params, original=None):
                 cube = fits.getdata(fits_file)
                 mask = fits.getdata(src_basename + '_{}_mask.fits'.format(source['id']))
                 spec_template = ascii.read(src_basename + '_{}_spec.txt'.format(source['id']),
-                                           names=['chan', 'col2', 'f_sum', 'n_pix'])
+                                            names=['chan', 'col2', 'f_sum', 'n_pix'])
                 channels = spec_template['chan']
             else:
-                print("\tOriginal data cube provided: making full spectrum image with noise.")
                 fits_file = original
                 cube = get_subcube(source, original)
-                mask = get_subcube(source, original[:-5] + '_mask.fits')
+                if os.path.isfile(original) and os.path.isfile(original[:-5] + '_mask.fits'):
+                    print("\tOriginal data cube provided: making full spectrum image with noise.")
+                    mask = get_subcube(source, original[:-5] + '_mask.fits')
+                elif os.path.isfile(original) and os.path.isfile(src_basename.split('_cubelets')[0] + '_mask.fits'):
+                    print("\tOriginal data cube provided, original file name differs from catalog file: Making full spectrum image with noise.")
+                    mask = get_subcube(source, src_basename.split('_cubelets')[0] + '_mask.fits')
                 spec_template = None
                 channels = np.asarray(range(cube.shape[0]))
         except:
-            print("\tNo cube file provided, or original file name differs from catalog file name so can't generate a *_specfull.txt with noise.")
+            print("\tWrong name provided for original file, or original mask file doesn't exist, so can't generate a *_specfull.txt with noise.")
             return
 
         mask2d = np.sum(mask, axis=0)
@@ -80,29 +80,33 @@ def get_noise_spec(source, src_basename, cube_params, original=None):
 
 
 # Make full spectrum plot:
-def make_specfull(source, src_basename, cube_params, original, suffix='png'):
+def make_specfull(source, src_basename, cube_params, original, spec_line=None, suffix='png'):
 
     outfile2 = src_basename.replace('cubelets', 'figures') + '_{}_specfull.{}'.format(source['id'], suffix)
 
     if not os.path.isfile(outfile2):
 
+        # Get frequency information for spectral line in question:
+        line = line_lookup(spec_line)
+
         try:
             print("\tMaking HI spectrum plot including noise.")
-            convention = 'Optical'
             if 'freq' in source.colnames:
                 spec = ascii.read(outfile2[:-1*len(suffix)] + 'txt')
-                optical_velocity = (spec['freq'] * u.Hz).to(u.km / u.s, equivalencies=optical_HI).value
+                optical_velocity = (spec['freq'] * u.Hz).to(u.km / u.s, equivalencies=line['convention']).value
                 maskmin = (spec['freq'][spec['chan'] == source['z_min']] * u.Hz).to(u.km / u.s,
-                                                                                    equivalencies=optical_HI).value
+                                                                                    equivalencies=line['convention']).value
                 maskmax = (spec['freq'][spec['chan'] == source['z_max']] * u.Hz).to(u.km / u.s,
-                                                                                    equivalencies=optical_HI).value
+                                                                                    equivalencies=line['convention']).value
             else:
                 if 'v_rad' in source.colnames:
-                    convention = 'Radio'
+                    line['rad_opt'] = 'Radio'
                 spec = ascii.read(outfile2[:-1 * len(suffix)] + 'txt', names=['chan', 'velo', 'f_sum', 'n_pix'])
                 optical_velocity = (spec['velo'] * u.m / u.s).to(u.km / u.s).value
-                maskmin = (spec['velo'][spec['chan'] == source['z_min']] * u.m / u.s).to(u.km / u.s).value
-                maskmax = (spec['velo'][spec['chan'] == source['z_max']] * u.m / u.s).to(u.km / u.s).value
+                maskmin = (spec['velo'][spec['chan'] == source['z_min']] * u.m / u.s).to(u.km / u.s,
+                                                                                         equivalencies=line['convention']).value
+                maskmax = (spec['velo'][spec['chan'] == source['z_max']] * u.m / u.s).to(u.km / u.s,
+                                                                                         equivalencies=line['convention']).value
         except FileNotFoundError:
             print("\tNo existing _specfull.txt file. Perhaps there is no cube to generate one, or need to specify original.")
             fig2, ax2_spec, outfile2 = None, None, None
@@ -123,11 +127,25 @@ def make_specfull(source, src_basename, cube_params, original, suffix='png'):
         else:
             print("\tInput *_specfull.txt is >=800 channels; expanding figure, not including error bars (noise should be indicative).")
             ax2_spec.plot(optical_velocity, spec['f_sum'] / cube_params['pix_per_beam'])
-        ax2_spec.set_title(source['name'])
+        ax2_spec.set_title(source['name'], fontsize=16)
         ax2_spec.set_xlim(np.min(optical_velocity) - 5, np.max(optical_velocity) + 5)
-        ax2_spec.set_ylabel("Integrated Flux [Jy]")
-        ax2_spec.set_xlabel("{} {} Velocity [km/s]".format(cube_params['spec_sys'].capitalize(), convention))
-
+        ax2_spec.set_ylabel("Integrated Flux [Jy]", fontsize=14)
+        ax2_spec.set_xlabel("{} {} Recessional Velocity [km/s]".format(cube_params['spec_sys'].capitalize(), 
+                                                                       line['rad_opt']), fontsize=14)
+        ax2_spec.tick_params(axis='both', which='major', labelsize=12)
+        ax2_spec.autoscale(False)
+        if 'freq' in source.colnames:
+            ax2b_spec = ax2_spec.twiny()
+            freq1 = (spec['freq'][-1] * u.Hz).to(u.MHz)
+            freq2 = (spec['freq'][0] * u.Hz).to(u.MHz)
+            ax2b_spec.set_xlabel('Frequency [MHz]', fontsize=14)
+            if freq1 >= 2*u.GHz:
+                freq1 = freq1.to(u.GHz)
+                freq2 = freq2.to(u.GHz)
+                ax2b_spec.set_xlabel('Frequency [GHz]', fontsize=14)
+            ax2b_spec.set_xlim(freq1.value, freq2.value)
+            ax2b_spec.tick_params(labelsize=12)
+            ax2b_spec.ticklabel_format(style='plain', useOffset=False)
         spectrumJy = spec["f_sum"] / cube_params['pix_per_beam']
         galspec_max = np.nanmax(spectrumJy[np.where(spec['chan'] == source['z_min'])[0][0]:
                                            np.where(spec['chan'] == source['z_max'])[0][0]+1])
@@ -158,22 +176,24 @@ def make_specfull(source, src_basename, cube_params, original, suffix='png'):
 
 
 # Make SoFiA masked spectrum plot (no noise):
-def make_spec(source, src_basename, cube_params, suffix='png'):
+def make_spec(source, src_basename, cube_params, spec_line=None, suffix='png'):
 
     outfile1 = src_basename.replace('cubelets', 'figures') + '_{}_spec.{}'.format(source['id'], suffix)
 
     if not os.path.isfile(outfile1):
 
+        # Get frequency information for spectral line in question:
+        line = line_lookup(spec_line)
+
         try:
             print("\tMaking HI SoFiA masked spectrum plot.")
-            convention = 'Optical'
             if 'freq' in source.colnames:
                 spec = ascii.read(src_basename + '_{}_spec.txt'.format(source['id']),
                                   names=['chan', 'freq', 'f_sum', 'n_pix'])
-                optical_velocity = (spec['freq'] * u.Hz).to(u.km / u.s, equivalencies=optical_HI).value
+                optical_velocity = (spec['freq'] * u.Hz).to(u.km / u.s, equivalencies=line['convention']).value
             else:
                 if 'v_rad' in source.colnames:
-                    convention = 'Radio'
+                    line['rad_opt'] = 'Radio'
                 spec = ascii.read(src_basename + '_{}_spec.txt'.format(source['id']),
                                   names=['chan', 'velo', 'f_sum', 'n_pix'])
                 optical_velocity = (spec['velo'] * u.m / u.s).to(u.km / u.s).value
@@ -198,10 +218,25 @@ def make_spec(source, src_basename, cube_params, suffix='png'):
         elif specunits == 'Jy':
             ax1_spec.errorbar(optical_velocity, spec['f_sum'], elinewidth=0.75,
                               yerr=source['rms'] * np.sqrt(spec['n_pix'] / cube_params['pix_per_beam']), capsize=1)
-        ax1_spec.set_title(source['name'])
+        ax1_spec.set_title(source['name'], fontsize=16)
         ax1_spec.set_xlim(np.min(optical_velocity) - 5, np.max(optical_velocity) + 5)
-        ax1_spec.set_ylabel("Integrated Flux [Jy]")
-        ax1_spec.set_xlabel("{} {} Velocity [km/s]".format(cube_params['spec_sys'].capitalize(), convention))
+        ax1_spec.set_ylabel("Integrated Flux [Jy]", fontsize=14)
+        ax1_spec.set_xlabel("{} {} Recessional Velocity [km/s]".format(cube_params['spec_sys'].capitalize(), 
+                                                                       line['rad_opt']), fontsize=14)
+        ax1_spec.tick_params(axis='both', which='major', labelsize=12)
+        ax1_spec.autoscale(False)
+        if 'freq' in source.colnames:
+            ax1b_spec = ax1_spec.twiny()
+            freq1 = (spec['freq'][-1] * u.Hz).to(u.MHz)
+            freq2 = (spec['freq'][0] * u.Hz).to(u.MHz)
+            ax1b_spec.set_xlabel('Frequency [MHz]', fontsize=14)
+            if freq1 >= 2*u.GHz:
+                freq1 = freq1.to(u.GHz)
+                freq2 = freq2.to(u.GHz)
+                ax1b_spec.set_xlabel('Frequency [GHz]', fontsize=14)
+            ax1b_spec.set_xlim(freq1.value, freq2.value)
+            ax1b_spec.ticklabel_format(style='plain', useOffset=False)
+            ax1b_spec.tick_params(labelsize=12)
 
     else:
         print('\t{} already exists. Will not overwrite.'.format(outfile1))
@@ -210,7 +245,7 @@ def make_spec(source, src_basename, cube_params, suffix='png'):
     return fig1, ax1_spec, outfile1
 
 
-def main(source, src_basename, original=None, suffix='png', beam=None):
+def main(source, src_basename, original=None, spec_line=None, suffix='png', beam=None):
 
     print("\tStart making spectral profiles")
 
@@ -226,7 +261,7 @@ def main(source, src_basename, original=None, suffix='png', beam=None):
             return
 
     # Make plot of SoFiA masked spectrum
-    fig1, ax1_spec, outfile1 = make_spec(source, src_basename, cube_params, suffix=suffix)
+    fig1, ax1_spec, outfile1 = make_spec(source, src_basename, cube_params, spec_line=spec_line, suffix=suffix)
 
     # Make text file of spectrum with noise; use full frequency range of original cube if provided:
     # Can be a bit more precise here in the output options/specification.
@@ -235,8 +270,8 @@ def main(source, src_basename, original=None, suffix='png', beam=None):
         get_noise_spec(source, src_basename, cube_params, original)
 
     # Make plot of spectrum with noise
-    fig2, ax2_spec, outfile2 = make_specfull(source, src_basename, cube_params, original, suffix=suffix)
-
+    fig2, ax2_spec, outfile2 = make_specfull(source, src_basename, cube_params, original, spec_line=spec_line,
+                                             suffix=suffix)
     if outfile1 and outfile2:
         ymin = min([ax1_spec.get_ylim()[0], ax2_spec.get_ylim()[0]])
         ymax = max([ax1_spec.get_ylim()[1], ax2_spec.get_ylim()[1]])

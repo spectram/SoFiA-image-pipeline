@@ -72,7 +72,7 @@ def felo2vel(channels, fits_name):
     return velocities
 
 
-def sbr2nhi(sbr, bunit, bmaj, bmin, source):
+def sbr2nhi(sbr, bunit, bmaj, bmin, source, spec_line=None):
     """Get the HI column density from sbr.  See Section 15 of Meyer et al (2017) for equations: 
     https://ui.adsabs.harvard.edu/abs/2017PASA...34...52M/abstract
 
@@ -80,7 +80,7 @@ def sbr2nhi(sbr, bunit, bmaj, bmin, source):
     :type sbr: float
     :param bunit: unit in which sbr is measured
     :type bunit: str
-    :param bmaj: major axis of the beam
+    :param bmaj: major axis of the beam in arcseconds
     :type bmaj: float
     :param bmin: minor axis of the beam
     :type bmin: float
@@ -91,6 +91,7 @@ def sbr2nhi(sbr, bunit, bmaj, bmin, source):
     """
 
     c = const.c.to(u.m/u.s).value
+    line = line_lookup(spec_line)
     
     if (bunit == 'Jy/beam*m/s') or (bunit == 'Jy/beam*M/S'):
         print("\tWARNING: Assumes velocity axis of cube is in the *observed* frame. If cube is in source rest frame, "
@@ -108,23 +109,45 @@ def sbr2nhi(sbr, bunit, bmaj, bmin, source):
         elif 'v_app' in source.colnames:
             vel_sys = source['v_app']
             z = vel_sys / c
-        nhi = 1.104e+21 * (1 + z) ** 2 * sbr / bmaj / bmin
+
+        if (spec_line == None) or (spec_line == 'HI'):
+            nhi = 1.104e+21 * (1 + z) ** 2 * sbr / bmaj / bmin
+        else:
+            print("\tWARNING: Mom0 units not corrected for non-HI lines in units of Jy/beam*m/s.")
+            nhi = sbr
+
     elif (bunit == 'Jy/beam*Hz') or (bunit == 'beam-1 Jy*Hz'):
         freq_sys = source['freq']
         z = (HI_restfreq.value - freq_sys) / freq_sys
-        nhi = 2.330e+20 * (1 + z) ** 4 * sbr / bmaj / bmin
+
+        if (spec_line == None) or (spec_line == 'HI'):
+            nhi = 2.330e+20 * (1 + z) ** 4 * sbr / bmaj / bmin
+        else:
+            # Units of Jy/beam Hz
+            nhi = sbr
+            # Units of Kelvin Hz
+            # nhi = 1.222e+3 * sbr / bmaj / bmin / line['restfreq'].to(u.GHz).value**2
+        
     else:
-        print("\tWARNING: Mom0 image units are not Jy/beam*m/s or Jy/beam*Hz. Cannot convert to HI column density.")
+        if (spec_line == None) or (spec_line == 'HI'):
+            print("\tWARNING: Mom0 image units are not Jy/beam*m/s or Jy/beam*Hz. Cannot convert to HI column density.")
+        else:
+            print("\tWARNING: Mom0 image units are not Jy/beam*m/s or Jy/beam*Hz.")
         nhi = sbr
     
     if np.isfinite(nhi):
-        nhi_ofm = np.int(np.floor(np.log10(np.abs(nhi))))
+        nhi_ofm = int(np.floor(np.log10(np.abs(nhi))))
     else:
         nhi_ofm = 0
     
-    nhi_label = '$N_\mathrm{{HI}}$ = {0:.1f} x $10^{{ {1:d} }}$ cm$^{{-2}}$'.format(nhi/10**nhi_ofm, nhi_ofm)
-    nhi_labels = '$N_\mathrm{{HI}}$ = $2^n$ x {0:.1f} x $10^{{ {1:d} }}$ cm$^{{-2}}$ ($n$=0,1,...)'.format(nhi/10**nhi_ofm, nhi_ofm)
-    
+    if (spec_line == None) or (spec_line == 'HI'):
+        nhi_label = '$N_\mathrm{{HI}}$ = {0:.1f} x $10^{{ {1:d} }}$ cm$^{{-2}}$'.format(nhi/10**nhi_ofm, nhi_ofm)
+        nhi_labels = '$N_\mathrm{{HI}}$ = $2^n$ x {0:.1f} x $10^{{ {1:d} }}$ cm$^{{-2}}$ ($n$=0,1,...)'.format(nhi/10**nhi_ofm, nhi_ofm)
+    else:
+        nhi_label = '$S_\mathrm{{{0:s}}}$ = {1:.1f} x $10^{{ {2:d} }}$ Jy/beam Hz'.format(line['name'], nhi/10**nhi_ofm, nhi_ofm)
+        nhi_labels = '$S_\mathrm{{{:s}}}$ = $2^n$ x {:.1f} x $10^{{ {:d} }}$ Jy/beam Hz ($n$=0,1,...)'.format(line['name'],
+                                                                                             nhi/10**nhi_ofm, nhi_ofm)
+
     return nhi, nhi_label, nhi_labels
 
 
@@ -389,6 +412,34 @@ def create_pv(source, filename, opt_view=6*u.arcmin, min_axis=False):
     return mask_pv
 
 
+def line_lookup(spec_line):
+    """Return rest frequency and object to convert to optical velocities for requested line.
+    https://www.narrabri.atnf.csiro.au/observing/spectral.html
+
+    :param spec_line:
+    :type spec_line:
+    :return:
+    :rtype:
+    """
+
+    rad_opt = 'Optical'
+    if (spec_line == None) or (spec_line == 'HI'):
+        spec_line == 'HI'
+        restfreq_line = 1420405751.77 * u.Hz
+        convention = u.doppler_optical(restfreq_line)
+    elif spec_line == 'CO':
+        restfreq_line = 115.27120180 * u.GHz
+        convention = u.doppler_optical(restfreq_line)
+    elif spec_line == 'OH':
+        restfreq_line = 1.6673590 * u.GHz
+        convention = u.doppler_optical(restfreq_line)
+    else:
+        print("ERROR: Unrecognized spectral line.  Try 'HI', 'CO', or 'OH'.")
+        exit()
+
+    return {'name': spec_line, 'restfreq': restfreq_line, 'convention':convention, 'rad_opt':rad_opt}
+
+
 def plot_labels(source, ax, default_beam, x_color='k'):
     """Plot labels on spatial plots depending on the coordinate frame.
 
@@ -421,6 +472,6 @@ def plot_labels(source, ax, default_beam, x_color='k'):
         ax.scatter(0.92, 0.9, marker='x', c='red', s=500, linewidth=5, transform=ax.transAxes, zorder=99)
         ax.plot([0.1, 0.9], [0.05, 0.05], c='red', linewidth=3, transform=ax.transAxes, zorder=100)
         ax.text(0.5, 0.5, 'Not calculated with correct beam', transform=ax.transAxes, fontsize=40, color='gray',
-                alpha=0.5, ha='center', va='center', rotation='30', zorder=101)
+                alpha=0.5, ha='center', va='center', rotation=30, zorder=101)
 
     return
