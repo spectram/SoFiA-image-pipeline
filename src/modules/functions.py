@@ -57,7 +57,7 @@ def felo2vel(channels, fits_name):
 
     :param channels:
     :type channels: Iterable[int]
-    :param fits_name:
+    :param fits_name: name of the FITS file
     :type fits_name: str
     :return: calculated velocities
     :rtype: Iterable[float]
@@ -151,7 +151,7 @@ def sbr2nhi(sbr, bunit, bmaj, bmin, source, spec_line=None):
     return nhi, nhi_label, nhi_labels
 
 
-def get_info(fits_name, beam=None):
+def get_info(fits_name, beam=None, source_id=0):
     """Get the beam info from a FITS file.
 
     :param fits_name: name of the FITS file
@@ -264,11 +264,10 @@ def get_info(fits_name, beam=None):
                 pass
 
     # Try to determine the spectral properties
-    if fits_name[-9:] != 'cube.fits':
+    if (fits_name[-9:] != 'cube.fits') and (source_id != 0):
         print("\tWARNING: Retrieving info from a moment map or other 2D image?")
         chan_width = None
         spec_axis = None
-
     else:
         spec_axis = header['CTYPE3']
         chan_width = header['CDELT3']
@@ -462,8 +461,9 @@ def plot_labels(source, ax, default_beam, x_color='k'):
         x_coord, y_coord = 'ra', 'dec'
         x_label, y_label = 'RA (ICRS)', 'Dec (ICRS)'
 
-    ax.scatter(source['pos_x'], source['pos_y'], marker='x', c=x_color, linewidth=0.75,
-               transform=ax.get_transform('world'))
+    if source['id'] != 0:
+        ax.scatter(source['pos_x'], source['pos_y'], marker='x', c=x_color, linewidth=0.75,
+                transform=ax.get_transform('world'))
     ax.set_title(source['name'], fontsize=20)
     ax.tick_params(axis='both', which='major', labelsize=18)
     ax.coords[x_coord].set_axislabel(x_label, fontsize=20)
@@ -475,3 +475,66 @@ def plot_labels(source, ax, default_beam, x_color='k'):
                 alpha=0.5, ha='center', va='center', rotation=30, zorder=101)
 
     return
+
+
+def make_header(source, opt_view=6*u.arcmin):
+    """Return a dummy header when an ancillary image can't be retrieved.
+
+    :param source: source object
+    :type source: Astropy table
+    :param opt_view: requested size of the image for regriding
+    :type opt_view: quantity
+    :return:
+    :rtype: FITS HDU
+    """
+
+    npix = 16
+    hdu = fits.ImageHDU()
+    hdu.data = np.ones([npix, npix])
+    hdu.header['CTYPE1']  = 'RA---SIN'
+    hdu.header['CRPIX1'] = npix / 2 + 1
+    hdu.header['CRVAL1'] = source['pos_x']
+    hdu.header['CDELT1'] = -1 * opt_view[0].to(u.deg).value / npix
+    hdu.header['CTYPE2']  = 'DEC--SIN'
+    hdu.header['CRPIX2'] = npix / 2 + 1
+    hdu.header['CRVAL2'] = source['pos_y']
+    hdu.header['CDELT2'] = opt_view[0].to(u.deg).value / npix
+
+    return hdu.header
+
+
+def make_source(catalog, fits_name):
+    """Return a dummy source when a summary image is requested.
+
+    :param catalog: source catalog
+    :type catalog: Astropy table
+    :param fits_name: name of the FITS file
+    :type fits_name: str
+    :return:
+    :rtype: Astropy table
+    """
+
+    new_source = catalog[0]
+    header = fits.getheader(fits_name)
+    wcs = WCS(header, fix=True, translate_units='shd')
+
+    # Change the relevant catalog parameters ... prob need to deal with kin_pa and rms at some point.
+    new_source['name'] = fits_name.split('/')[-1][:-5]
+    new_source['id'] = 0
+    new_source['x'], new_source['y'], new_source['z'] = header['NAXIS1']/2, header['NAXIS2']/2, header['NAXIS3']/2
+    new_source['x_min'], new_source['x_max'] = int(np.min(catalog['x_min'])), int(np.max(catalog['x_max']))
+    new_source['y_min'], new_source['y_max'] = int(np.min(catalog['y_min'])), int(np.max(catalog['y_max']))
+    new_source['z_min'], new_source['z_max'] = int(np.min(catalog['z_min'])), int(np.max(catalog['z_max']))
+    new_source['rms'] = np.nanmin(catalog['rms'])
+    new_source['ra'], new_source['dec'] = wcs.celestial.wcs_pix2world(new_source['x'], new_source['y'], 0)
+    new_source['pos_x'], new_source['pos_y'] = wcs.celestial.wcs_pix2world(new_source['x'], new_source['y'], 0)
+    if 'freq' in catalog.colnames:
+        new_source['freq'] = (np.min(catalog['freq']) + np.max(catalog['freq'])) / 2
+    elif 'vrad' in catalog.colnames:
+        new_source['v_rad'] = (np.min(catalog['v_rad']) + np.max(catalog['v_rad'])) / 2
+    elif 'v_opt' in catalog.colnames:
+        new_source['v_opt'] = (np.min(catalog['v_opt']) + np.max(catalog['v_opt'])) / 2
+    elif 'v_app' in catalog.colnames:
+        new_source['v_app'] = (np.min(catalog['v_app']) + np.max(catalog['v_app'])) / 2
+
+    return new_source

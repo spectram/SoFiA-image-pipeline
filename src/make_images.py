@@ -19,6 +19,7 @@ from src.modules.functions import get_info
 from src.modules.functions import chan2freq, chan2vel, sbr2nhi, line_lookup
 from src.modules.functions import create_pv
 from src.modules.functions import plot_labels
+from src.modules.functions import make_header
 from src.modules.get_ancillary import *
 from src.modules.get_hst_cosmos import get_hst_cosmos
 
@@ -79,12 +80,12 @@ def make_overlay_usr(source, src_basename, cube_params, patch, opt, base_contour
     :type suffix: str, optional
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_mom0_{}.{}'.format(source['id'], 'usr', suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_mom0_{}.{}'.format(source['id'], 'usr', suffix)
 
     if not os.path.isfile(outfile):
         try:
             print("\tMaking HI contour overlay on {} image.".format('usr'))
-            hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+            hdulist_hi = fits.open(src_basename + '_mom0.fits')
         except FileNotFoundError:
             print("\tNo mom0 fits file. Perhaps you ran SoFiA without generating moments?")
             return
@@ -93,13 +94,13 @@ def make_overlay_usr(source, src_basename, cube_params, patch, opt, base_contour
                                              cube_params['bmin'].value, source, spec_line=spec_line)
 
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
@@ -159,12 +160,12 @@ def make_overlay(source, src_basename, cube_params, patch, opt, base_contour, sp
     :type survey: str, optional
     """
     survey_nospace = survey.replace(" ", "").lower()
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_mom0_{}.{}'.format(source['id'], survey_nospace, suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_mom0_{}.{}'.format(survey_nospace, suffix)
 
     if not os.path.isfile(outfile):
         try:
             print("\tMaking HI contour overlay on {} image.".format(survey))
-            hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+            hdulist_hi = fits.open(src_basename + '_mom0.fits')
         except FileNotFoundError:
             print("\tNo mom0 fits file. Perhaps you ran SoFiA without generating moments?")
             return
@@ -172,13 +173,13 @@ def make_overlay(source, src_basename, cube_params, patch, opt, base_contour, sp
         nhi, nhi_label, nhi_labels = sbr2nhi(base_contour, hdulist_hi[0].header['bunit'], cube_params['bmaj'].value,
                                              cube_params['bmin'].value, source, spec_line=spec_line)
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
@@ -247,25 +248,25 @@ def make_mom0(source, src_basename, cube_params, patch, opt_head, base_contour, 
     :type suffix: str
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_mom0.{}'.format(source['id'], suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_mom0.{}'.format(suffix)
 
     if not os.path.isfile(outfile):
         try:
             print("\tMaking HI contour overlay on grey-scale HI image.")
-            hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+            hdulist_hi = fits.open(src_basename + '_mom0.fits')
         except FileNotFoundError:
             print("\tNo mom0 fits file. Perhaps you ran SoFiA without generating moments?")
             return
 
         mom0 = hdulist_hi[0].data
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
@@ -333,26 +334,26 @@ def make_snr(source, src_basename, cube_params, patch, opt_head, base_contour, s
     :type suffix: str
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_snr.{}'.format(source['id'], suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_snr.{}'.format(suffix)
 
     if not os.path.isfile(outfile):
         try:
             print("\tMaking SNR image.")
-            hdulist_snr = fits.open(src_basename + '_{}_snr.fits'.format(str(source['id'])))
+            hdulist_snr = fits.open(src_basename + '_snr.fits')
         except FileNotFoundError:
             print("\tNo SNR fits file. Perhaps you ran SoFiA without generating moments?")
             return
 
-        hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+        hdulist_hi = fits.open(src_basename + '_mom0.fits')
 
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
@@ -421,22 +422,18 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
     :type sofia: int
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_mom1.{}'.format(source['id'], suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_mom1.{}'.format(suffix)
+    cube_end = '.fits'
+    if source['id'] != 0:
+        cube_end = '_cube.fits'
 
     if not os.path.isfile(outfile):
 
         try:
             print("\tMaking velocity field.")
-            mom1 = fits.open(src_basename + '_{}_mom1.fits'.format(source['id']))
+            mom1 = fits.open(src_basename + '_mom1.fits')
         except FileNotFoundError:
             print("\tNo mom1 fits file. Perhaps you ran SoFiA without generating moments?")
-            return
-
-        if not os.path.isfile(src_basename + '_{}_cube.fits'.format(source['id'])):
-            print("\tERROR: No fits cube associated with source, so can't determine min & max velocities for mom1 figure.")
-            return
-        elif not os.path.isfile(src_basename + '_{}_snr.fits'.format(source['id'])):
-            print("\tERROR: No fits snr map associated with source, so can't determine mask for mom1 figure.")
             return
 
         # Get frequency information for spectral line in question:
@@ -447,19 +444,19 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
             # Convert moment map from Hz into units of km/s
 
             if line['rad_opt'] == 'Radio':
-                print("\WARNING: Velocity dispersion calculated in source rest frame because 'radio velocity' convention has no physical meaning.")
-            mom1[0].data = (const.c * (mom1[0].data - source['freq'])/source['freq']).to(u.km / u.s).value
+                print("\tWARNING: Velocity dispersion calculated in source rest frame because 'radio velocity' convention has no physical meaning.")
+            mom1[0].data = (const.c * (source['freq'] - mom1[0].data)/source['freq']).to(u.km / u.s).value
             # Calculate spectral quantities for plotting
             v_sys = (source['freq'] * u.Hz).to(u.km/u.s, equivalencies=line['convention']).value
             # Currently SoFiA-2 puts out frequency w20/w50 in Hz units (good)
             w50 = (const.c * source['w50'] / (source['freq'])).to(u.km/u.s).value
             w20 = (const.c * source['w20'] / (source['freq'])).to(u.km/u.s).value
             if sofia == 2:
-                freqmin = chan2freq(source['z_min'], src_basename + '_{}_cube.fits'.format(source['id'])).to(u.Hz).value
-                freqmax = chan2freq(source['z_max'], src_basename + '_{}_cube.fits'.format(source['id'])).to(u.Hz).value
+                freqmin = chan2freq(source['z_min'], src_basename + cube_end).to(u.Hz).value
+                freqmax = chan2freq(source['z_max'], src_basename + cube_end).to(u.Hz).value
             elif sofia == 1:
-                freqmin = chan2freq(source['z_min'], src_basename + '_{}.fits'.format(source['id'])).to(u.Hz).value
-                freqmax = chan2freq(source['z_max'], src_basename + '_{}.fits'.format(source['id'])).to(u.Hz).value
+                freqmin = chan2freq(source['z_min'], src_basename + '.fits').to(u.Hz).value
+                freqmax = chan2freq(source['z_max'], src_basename + '.fits').to(u.Hz).value
             velmax = (const.c * (freqmin - source['freq'])/source['freq']).to(u.km / u.s).value
             velmin = (const.c * (freqmax - source['freq'])/source['freq']).to(u.km / u.s).value
             cbar_label = "Rest Frame Velocity [km/s]"
@@ -478,10 +475,8 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
             # SoFiA-2 puts out velocity w20/w50 in pixel units. https://github.com/SoFiA-Admin/SoFiA-2/issues/63
             w50 = (source['w50'] * u.m / u.s).to(u.km / u.s).value
             w20 = (source['w20'] * u.m / u.s).to(u.km / u.s).value
-            velmin = chan2vel(source['z_min'], src_basename +
-                              '_{}_cube.fits'.format(source['id'])).to(u.km / u.s).value
-            velmax = chan2vel(source['z_max'], src_basename +
-                              '_{}_cube.fits'.format(source['id'])).to(u.km / u.s).value
+            velmin = chan2vel(source['z_min'], src_basename + cube_end).to(u.km / u.s).value
+            velmax = chan2vel(source['z_max'], src_basename + cube_end).to(u.km / u.s).value
             cbar_label = "{} {} Velocity [km/s]".format(cube_params['spec_sys'].capitalize(), line['rad_opt'])
 
         if velmin == velmax:
@@ -490,20 +485,20 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
             singlechansource = False
 
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
 
         mom1_d = mom1[0].data
         # Only plot values above the lowest calculated HI value:
-        hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+        hdulist_hi = fits.open(src_basename + '_mom0.fits')
         mom0 = hdulist_hi[0].data
         if base_contour > 0.0 and np.isfinite(base_contour):
             mom1_d[mom0 < base_contour] = np.nan
@@ -527,7 +522,7 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
         # Don't know how to deal with CRPIX that's different between original data and subcubes (sofia issue; chan2freq, chan2vel)
         # vel_maxhalf = np.max([np.abs(velmax-v_sys), np.abs(v_sys-velmin)])
         vel_maxhalf = np.abs(velmax - velmin) / 2.
-        for vunit in [5, 10, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150]:
+        for vunit in [5, 10, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500]:
             n_contours = vel_maxhalf // vunit
             if n_contours <= 4:
                 break
@@ -538,36 +533,40 @@ def make_mom1(source, src_basename, cube_params, patch, opt_head, opt_view, base
         clevels = ['white', 'lightgray', 'dimgrey', 'black', 'dimgrey', 'lightgray', 'white']
         if not singlechansource:
             cf = ax1.contour(mom1_d, colors=clevels, levels=levels, linewidths=0.6, transform=ax1.get_transform(cubew))
-        v_sys_label = "$v_{{sys}}$ = {}  $W_{{50}}$ = {}  $W_{{20}}$ = {} km/s".format(int(v_sys), int(w50), int(w20))
+        
+        v_sys_label = "$v_{{center}}$ = {} km/s".format(int(v_sys))
+        if source['id'] != 0:
+            v_sys_label = "$v_{{sys}}$ = {}  $W_{{50}}$ = {}  $W_{{20}}$ = {} km/s".format(int(v_sys), int(w50), int(w20))
 
-        # Plot kin_pa from HI center of galaxy; calculate end points of line
-        p1x, p1y = (hi_pos.ra + 0.45 * opt_view[0] * np.sin(kinpa) / np.cos(hi_pos.dec)).deg,\
-                   (hi_pos.dec + 0.45 * opt_view[0] * np.cos(kinpa)).deg
-        p2x, p2y = (hi_pos.ra - 0.45 * opt_view[0] * np.sin(kinpa) / np.cos(hi_pos.dec)).deg,\
-                   (hi_pos.dec - 0.45 * opt_view[0] * np.cos(kinpa)).deg
-        # My one test data set in Galactic coords fails on savefig because of something weird happening in annotate.
-        if 'l' in source.colnames:
-            ax1.plot([p1x, p2x], [p1y, p2y], linestyle='--', color='k', transform=ax1.get_transform('world'))
-        else:
-            ax1.annotate("", xy=(p1x, p1y), xycoords=ax1.get_transform('world'),
-                         xytext=(p2x, p2y), textcoords=ax1.get_transform('world'),
-                         arrowprops=dict(arrowstyle="->,head_length=0.8,head_width=0.4", connectionstyle="arc3",
-                                         linestyle='--'))
-        # Plot the minor axis if pv_min was created by SoFiA:
-        if os.path.isfile(src_basename + '_{}_pv_min.fits'.format(source['id'])):
-            pa_min = kinpa + 90. * u.deg
-            p1x, p1y = (hi_pos.ra + 0.35 * opt_view[0] * np.sin(pa_min) / np.cos(hi_pos.dec)).deg,\
-                       (hi_pos.dec + 0.35 * opt_view[0] * np.cos(pa_min)).deg
-            p2x, p2y = (hi_pos.ra - 0.35 * opt_view[0] * np.sin(pa_min) / np.   cos(hi_pos.dec)).deg,\
-                       (hi_pos.dec - 0.35 * opt_view[0] * np.cos(pa_min)).deg
-            # Assume same issues with Galactic coordinates with plotting min PA as kinpa above
+        if source['id'] != 0:
+            # Plot kin_pa from HI center of galaxy; calculate end points of line
+            p1x, p1y = (hi_pos.ra + 0.45 * opt_view[0] * np.sin(kinpa) / np.cos(hi_pos.dec)).deg,\
+                    (hi_pos.dec + 0.45 * opt_view[0] * np.cos(kinpa)).deg
+            p2x, p2y = (hi_pos.ra - 0.45 * opt_view[0] * np.sin(kinpa) / np.cos(hi_pos.dec)).deg,\
+                    (hi_pos.dec - 0.45 * opt_view[0] * np.cos(kinpa)).deg
+            # My one test data set in Galactic coords fails on savefig because of something weird happening in annotate.
             if 'l' in source.colnames:
-                ax1.plot([p1x, p2x], [p1y, p2y], linestyle=':', color='k', transform=ax1.get_transform('world'))
+                ax1.plot([p1x, p2x], [p1y, p2y], linestyle='--', color='k', transform=ax1.get_transform('world'))
             else:
                 ax1.annotate("", xy=(p1x, p1y), xycoords=ax1.get_transform('world'),
                             xytext=(p2x, p2y), textcoords=ax1.get_transform('world'),
                             arrowprops=dict(arrowstyle="->,head_length=0.8,head_width=0.4", connectionstyle="arc3",
-                                            linestyle=':'))
+                                            linestyle='--'))
+            # Plot the minor axis if pv_min was created by SoFiA:
+            if os.path.isfile(src_basename + '_pv_min.fits'):
+                pa_min = kinpa + 90. * u.deg
+                p1x, p1y = (hi_pos.ra + 0.35 * opt_view[0] * np.sin(pa_min) / np.cos(hi_pos.dec)).deg,\
+                        (hi_pos.dec + 0.35 * opt_view[0] * np.cos(pa_min)).deg
+                p2x, p2y = (hi_pos.ra - 0.35 * opt_view[0] * np.sin(pa_min) / np.   cos(hi_pos.dec)).deg,\
+                        (hi_pos.dec - 0.35 * opt_view[0] * np.cos(pa_min)).deg
+                # Assume same issues with Galactic coordinates with plotting min PA as kinpa above
+                if 'l' in source.colnames:
+                    ax1.plot([p1x, p2x], [p1y, p2y], linestyle=':', color='k', transform=ax1.get_transform('world'))
+                else:
+                    ax1.annotate("", xy=(p1x, p1y), xycoords=ax1.get_transform('world'),
+                                xytext=(p2x, p2y), textcoords=ax1.get_transform('world'),
+                                arrowprops=dict(arrowstyle="->,head_length=0.8,head_width=0.4", connectionstyle="arc3",
+                                                linestyle=':'))
 
         ax1.text(0.5, 0.05, v_sys_label, ha='center', va='center', transform=ax1.transAxes, color='black', fontsize=18)
         if not singlechansource:
@@ -600,22 +599,15 @@ def make_mom2(source, src_basename, cube_params, patch, opt_head, base_contour, 
     """
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_mom2.{}'.format(source['id'], suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_mom2.{}'.format(suffix)
 
     if not os.path.isfile(outfile):
 
         try:
             print("\tMaking velocity dispersion map.")
-            mom2 = fits.open(src_basename + '_{}_mom2.fits'.format(source['id']))
+            mom2 = fits.open(src_basename + '_mom2.fits')
         except FileNotFoundError:
             print("\tNo mom2 fits file. Perhaps you ran SoFiA without generating moments?")
-            return
-
-        if not os.path.isfile(src_basename + '_{}_cube.fits'.format(source['id'])):
-            print("\tERROR: No fits cube associated with source, so can't determine min & max velocities for mom2 figure.")
-            return
-        elif not os.path.isfile(src_basename + '_{}_snr.fits'.format(source['id'])):
-            print("\tERROR: No fits snr map associated with source, so can't determine mask for mom2 figure.")
             return
 
         # Get frequency information for spectral line in question:
@@ -642,20 +634,20 @@ def make_mom2(source, src_basename, cube_params, patch, opt_head, base_contour, 
             singlechansource = False
 
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
 
         mom2_d = mom2[0].data
         # Only plot values above the lowest calculated HI value:
-        hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+        hdulist_hi = fits.open(src_basename + '_mom0.fits')
         mom0 = hdulist_hi[0].data
         if base_contour > 0.0 and np.isfinite(base_contour):
             mom2_d[mom0 < base_contour] = np.nan
@@ -738,23 +730,25 @@ def make_color_im(source, src_basename, cube_params, patch, color_im, opt_head, 
     :type survey: str
     :return:
     """
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_mom0_{}.{}'.format(source['id'], survey, suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_mom0_{}.{}'.format(survey, suffix)
 
     if survey == 'panstarrs': survey = 'PanSTARRS'
-    elif survey == 'decals': survey = 'DECaLS'
+    elif (survey == 'decals') or (survey == 'dr9'): survey = 'DECaLS'
+    elif survey == 'decaps': survey = 'DECaPS'
+    elif survey == 'sdss': survey = 'SDSS'
 
     if not os.path.isfile(outfile):
-        print("\tMaking HI contour overlay on {} image.".format(survey))
-        hdulist_hi = fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id'])))
+        print("\tMaking HI contour overlay on {} false color image.".format(survey))
+        hdulist_hi = fits.open(src_basename + '_mom0.fits')
 
         try:
-            hiwcs, cubew = get_wcs_info(src_basename + '_{}_cube.fits'.format(source['id']))
+            hiwcs, cubew = get_wcs_info(src_basename + '_cube.fits')
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                hiwcs, cubew = get_wcs_info(src_basename + '_{}_mom0.fits'.format(source['id']))
+                hiwcs, cubew = get_wcs_info(src_basename + '_mom0.fits')
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
@@ -823,12 +817,12 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, spec_line=No
     pv_axis = 'pv'
     if min_axis == True:
         pv_axis = 'pv_min'
-    outfile = src_basename.replace('cubelets', 'figures') + '_{}_{}.{}'.format(source['id'], pv_axis, suffix)
+    outfile = src_basename.replace('cubelets', 'figures') + '_{}.{}'.format(pv_axis, suffix)
 
     if not os.path.isfile(outfile):
         try:
             print("\tMaking {} diagram.".format(pv_axis))
-            pv = fits.open(src_basename + '_{}_{}.fits'.format(str(source['id']), pv_axis))
+            pv = fits.open(src_basename + '_{}.fits'.format(pv_axis))
         except FileNotFoundError:
             print("\tNo {} fits file. Perhaps you ran source finding with an old version of SoFiA-2?".format(pv_axis))
             return
@@ -870,10 +864,9 @@ def make_pv(source, src_basename, cube_params, opt_view=6*u.arcmin, spec_line=No
                 ax1.contour(pvd, colors=['w', ], levels=-pvd_rms * 3**np.arange(10, 0, -1), linestyles=['dashed', ])
 
             ax1.autoscale(False)
-            if os.path.isfile(src_basename + '_{}_mask.fits'.format(str(source['id']))):
+            if os.path.isfile(src_basename + '_mask.fits'):
                 print("\tAttempting to overlay mask boundaries on {} diagram ...".format(pv_axis))
-                mask_pv = create_pv(source, src_basename + '_{}_mask.fits'.format(str(source['id'])),
-                                    opt_view=opt_view[0], min_axis=min_axis)
+                mask_pv = create_pv(source, src_basename + '_mask.fits', opt_view=opt_view[0], min_axis=min_axis)
                 if mask_pv:
                     # Extract_pv has a header bug, reset the reference pixel:
                     mask_pv.header['CRPIX1'] = mask_pv.header['NAXIS1'] / 2 + 1
@@ -941,39 +934,43 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
 
     print("\tStart making spatial images.")
     swapx = False
+    cube_end = '.fits'
+    if source['id'] != 0:
+        src_basename = src_basename + '_{}'.format(source['id'])
+        cube_end = '_cube.fits'
 
     # Get beam information from the source cubelet
     if sofia == 2:
         try:
-            cube_params = get_info(src_basename + '_{}_cube.fits'.format(source['id']), beam)
+            cube_params = get_info(src_basename + cube_end, beam, source['id'])
         except FileNotFoundError:
             # Exits, but need to see if one can proceed without this...say with only mom0.fits as min requirement?
             print("\tWARNING: No cubelet to match source {}."
                   " Try retrieving coordinate info from moment 0 map.".format(source['id']))
             try:
-                cube_params = get_info(src_basename + '_{}_mom0.fits'.format(source['id']), beam)
+                cube_params = get_info(src_basename + '_mom0.fits', beam, source['id'])
             except FileNotFoundError:
                 print("\tERROR: No cubelet or mom0 to match source {}.\n".format(source['id']))
                 exit()
     elif sofia == 1:
-        cube_params = get_info(src_basename + '_{}.fits'.format(source['id']), beam)
+        cube_params = get_info(src_basename + '.fits', beam, source['id'])
 
     opt_head = None
 
     # Calculate base contour from the SNR map and requested SNR range
     try:
-        with fits.open(src_basename + '_{}_snr.fits'.format(str(source['id']))) as hdulist_snr, \
-                fits.open(src_basename + '_{}_mom0.fits'.format(str(source['id']))) as hdulist_hi:
+        with fits.open(src_basename + '_snr.fits') as hdulist_snr, \
+                fits.open(src_basename + '_mom0.fits') as hdulist_hi:
             HIlowest = np.median(hdulist_hi[0].data[(np.abs(hdulist_snr[0].data) > snr_range[0]) *
                                                     (np.abs(hdulist_snr[0].data) < snr_range[1])])
         print("\tThe first HI contour defined at SNR = {0} has level = {1:.3e} (mom0 data units).".format(snr_range,
                                                                                                           HIlowest))
     # If no SNR map use the channel width of the original data (provided by user if necessary) for lowest HI contour.
     except FileNotFoundError:
-        if os.path.isfile(src_basename + '_{}_mom0.fits'.format(str(source['id']))):
+        if os.path.isfile(src_basename + '_mom0.fits'):
             print("\tNo SNR fits file found. Will determine lowest contour based on rms in catalog,"
                   " min(user provided SNR), and user provided channel width.")
-            if cube_params['chan_width']:
+            if cube_params['chan_width'] != None:
                 HIlowest = source['rms'] * np.nanmin(snr_range) * np.abs(cube_params['chan_width'].value)
             # Assumes user gives chan_width in correct units of original data but SIP knows units from mom0 header!
             elif chan_width:
@@ -1074,10 +1071,12 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
             patch_hst = {'width': patch_width, 'height': patch_height}
             make_overlay(source, src_basename, cube_params, patch_hst, hst_opt, HIlowest, suffix=suffix, survey='hst',
                          spec_line=spec_line)
-        if surveys[0] == 'hst':
-            opt_head = hst_opt[0].header
-            opt_view = np.array([hst_opt_view.value,]) * u.arcsec
-            patch = patch_hst
+            if surveys[0] == 'hst':
+                opt_head = hst_opt[0].header
+                opt_view = np.array([hst_opt_view.value,]) * u.arcsec
+                patch = patch_hst
+        elif surveys[0] == 'hst':
+            opt_head = make_header(source, opt_view=opt_view)
         surveys.remove('hst')
 
     # Create a false color optical panstarrs overlay, if requested:
@@ -1086,54 +1085,77 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
         if pstar_im:
             make_color_im(source, src_basename, cube_params, patch, pstar_im, pstar_head, HIlowest,
                           suffix=suffix, survey='panstarrs', spec_line=spec_line)
-        if surveys[0] == 'panstarrs':
-            opt_head = pstar_head
+            if surveys[0] == 'panstarrs':
+                opt_head = pstar_head
+        elif surveys[0] == 'panstarrs':
+            opt_head = make_header(source, opt_view=opt_view)
         surveys.remove('panstarrs')
     elif ('panstarrs' in surveys) and (hi_pos_common.frame.name == 'galactic'):
         print("\t'panstarrs' image retrieval not supported for catalog in Galactic coordinates.")
         surveys.remove('panstarrs')
 
-    # If requested plot HI contours on DECaLS imaging
-    decals = 'decals'
+    # If requested plot HI contours on DECaLS, DECaPS, or SDSS false color imaging
+    decals_url = 'decals'
     if 'decals' in surveys and 'decals-dr9' in surveys:
         # Only decals and decals-dr9 have common overlap; decaps shouldn't be called at the same time.
         print("\tERROR: Only one between decals and decals-dr9 can be given.")
         exit()
     elif 'decals-dr9' in surveys:
         surveys[surveys.index('decals-dr9')] = 'decals'
-        decals = 'dr9'
+        decals_url = 'dr9'
     elif 'decaps' in surveys:
         surveys[surveys.index('decaps')] = 'decals'
-        decals = 'decaps'
-    if ('decals' in surveys) and (hi_pos_common.frame.name != 'galactic'):
-        decals_im, decals_head = get_decals(hi_pos_common, opt_view=opt_view, decals=decals)
-        make_color_im(source, src_basename, cube_params, patch, decals_im, decals_head, HIlowest, suffix=suffix,
-                      survey='decals', spec_line=spec_line)
-        if (surveys[0] == 'decals') or (surveys[0] == 'dr9') or (surveys[0] == 'decaps'):
-            opt_head = decals_head
-        surveys.remove('decals')
-    elif (('decals' in surveys) or ('decaps' in surveys)) and (hi_pos_common.frame.name == 'galactic'):
+        decals_url = 'decaps'
+    elif 'sdss' in surveys:
+        decals_url = 'sdss'
+    if (('decals' in surveys) or ('decaps' in surveys) or ('sdss' in surveys)) and (hi_pos_common.frame.name != 'galactic'):
+        decals_im, decals_head = get_decals(hi_pos_common, opt_view=opt_view, decals=decals_url)
+        if decals_url == 'dr9' : decals_url = 'decals'
+        if decals_url == 'decaps' : decals_url = 'decals'  # Temp for file naming for now, but need to change in future.
+        if decals_im:
+            make_color_im(source, src_basename, cube_params, patch, decals_im, decals_head, HIlowest, suffix=suffix,
+                        survey=decals_url, spec_line=spec_line)
+            if (surveys[0] == 'decals') or (surveys[0] == 'dr9') or (surveys[0] == 'decaps') or (surveys[0] == 'sdss'):
+                opt_head = decals_head
+        elif surveys[0] == 'decals':
+            opt_head = make_header(source, opt_view=opt_view)
+        try: 
+            surveys.remove('decals')
+        except:
+            surveys.remove('sdss')
+    elif (('decals' in surveys) or ('decaps' in surveys) or ('sdss' in surveys)) and (hi_pos_common.frame.name == 'galactic'):
         print("\t'decals' and 'decaps' image retrieval not supported for catalog in Galactic coordinates.")
-        surveys.remove('decals')
+        try:
+            surveys.remove('decals')
+        except:
+            surveys.remove('sdss')
 
     # If requested, plot the HI contours on any number of survey images available through SkyView.
     if len(surveys) > 0:
         for survey in surveys:
             if ('wise' in survey) or ('WISE' in survey):
                 overlay_image = get_wise(hi_pos_common, opt_view=opt_view, survey=survey)
-                make_overlay(source, src_basename, cube_params, patch, overlay_image, HIlowest, suffix=suffix,
-                             survey=survey, spec_line=spec_line)
-                if surveys[0] == survey:
-                    opt_head = overlay_image[0].header
+                if overlay_image:
+                    make_overlay(source, src_basename, cube_params, patch, overlay_image, HIlowest, 
+                                 suffix=suffix, survey=survey, spec_line=spec_line)
+                    if surveys[0] == survey:
+                        opt_head = overlay_image[0].header
+                else:
+                    if surveys[0] == survey:
+                        opt_head = make_header(source, opt_view=opt_view)
             else:
                 try:
                     overlay_image = get_skyview(hi_pos_common, opt_view=opt_view, survey=survey)
-                    make_overlay(source, src_basename, cube_params, patch, overlay_image, HIlowest, suffix=suffix,
-                                 survey=survey, spec_line=spec_line)
-                    if surveys[0] == survey:
-                        opt_head = overlay_image[0].header
+                    if overlay_image:
+                        make_overlay(source, src_basename, cube_params, patch, overlay_image, HIlowest, 
+                                     suffix=suffix, survey=survey, spec_line=spec_line)
+                        if surveys[0] == survey:
+                            opt_head = overlay_image[0].header
+                    else:
+                        if surveys[0] == survey:
+                            opt_head = make_header(source, opt_view=opt_view)
                 except ValueError:
-                    print("\tERROR: \"{}\" may not among the survey hosted at skyview or survey names recognized by "
+                    print("\tERROR: \"{}\" may not be among the survey hosted at skyview or survey names recognized by "
                           "astroquery. \n\t\tSee SkyView.list_surveys or SkyView.survey_dict from astroquery for valid "
                           "surveys.".format(survey))
                 except HTTPError:
@@ -1148,17 +1170,6 @@ def main(source, src_basename, opt_view=6*u.arcmin, suffix='png', sofia=2, beam=
                     except:
                         print("\t\tSecond attempt failed. Either survey doesn't cover this area, or server failed."
                               " Try again later?")
-                # except:
-                #     print("\tERROR: general error attempting return image from SkyView query for {} survey. Trying with"
-                #           " cache=False.".format(survey))
-                #     try:
-                #         overlay_image = get_skyview(hi_pos_common, opt_view=opt_view, survey=survey, cache=False)
-                #         make_overlay(source, src_basename, cube_params, patch, overlay_image, HIlowest, swapx,
-                #                      suffix=suffix, survey=survey, spec_line=spec_line)
-                #         if surveys[0] == survey:
-                #             opt_head = overlay_image[0].header
-                #     except:
-                #         print("\t\tSecond attempt failed. Try again later?")
 
     # Make the rest of the images if there is a survey image to regrid to.
     if opt_head:
